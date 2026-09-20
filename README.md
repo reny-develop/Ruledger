@@ -18,8 +18,8 @@ How far the walk goes is a budget, and what the budget did not reach is reported
 reached, never as not there.
 
 The walk is reproducible. The same ruleset visits the same states in the same order every
-time: no randomness, no seed. Everything else — the budget, how far the walk backtracks — is
-configuration, and it is recorded alongside the test design.
+time: no randomness, no seed. Everything else — the budget, and how hard the runtime is asked
+to look — is configuration, and it is recorded alongside the test design.
 
 ## What v1 does
 

@@ -39,7 +39,7 @@ No number that stands in for quality. Ruledger reports what a budget did not rea
 Nothing is hidden when it fails. A choice that could not be carried is reported and never dropped back to what the machine would have picked, and a place the walk did not reach is reported as that rather than as nothing being there. There should be no code path that quietly reverts to a default.
 
 ## The walk
-Deterministic: the same rule set and the same settings visit the same states in the same order. No randomness, no seed, and nothing that depends on the enumeration order of a hash table. Everything that is not derived from the rule set is a setting and travels with the test design.
+Deterministic: the same rule set and the same settings visit the same states in the same order. No randomness, no seed, and nothing that depends on the enumeration order of a hash table. Everything that is not derived from the rule set and can be varied is a setting and travels with the test design.
 
 Written on an explicit stack. The depth of a walk is a budget away from unbounded — a rule set holding a history never returns to a state it has been in — and recursion breaks at three thousand frames.
 
