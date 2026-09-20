@@ -1,0 +1,46 @@
+# The measurements, on every commit.
+#
+# Everything Rule-Derived Test Design claims about Ruledger is a number, and a number
+# somebody has to take on trust is not proof of anything. This is what makes "it was
+# measured" a fact rather than a claim: the numbers come out of a run, the run happens on
+# every push, and a number that moves fails the build.
+#
+# The unit tests and the measurements are run separately and in that order, because they
+# fail for different reasons and a run that says which is a run somebody can act on. The
+# measurements are run with the output shown, so the log is the report — the point is not
+# that they went green but what they came out as.
+
+name: measure
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      # The vocabularies the measured rule sets draw on come from nuget.org as packages and
+      # land beside the test assemblies, which is how the runtime finds them. Nothing here
+      # builds a plugin from source: a measurement is about a published vocabulary, and one
+      # rebuilt from whatever happened to be checked out is not one.
+      - run: dotnet restore Ruledger.slnx
+
+      - run: dotnet build Ruledger.slnx --configuration Release --no-restore
+
+      - name: unit
+        run: dotnet test test/Ruledger.Tests.csproj --configuration Release --no-build
+
+      - name: measurements
+        run: >
+          dotnet test verify/Ruledger.Verify.csproj --configuration Release --no-build
+          --logger "console;verbosity=detailed"

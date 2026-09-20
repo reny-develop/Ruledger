@@ -3,47 +3,14 @@
 
 namespace Ruledger.Tests
 {
+    /// <summary>What the scan makes of a rule set written to put one question to it.</summary>
+    /// <remarks>
+    /// The measured rule sets and what the scan says about each of them are in
+    /// <c>verify/</c>. Here the rule sets are written for the question: the half of the
+    /// answer that cannot be seen by reading guards alone, and whose move it is.
+    /// </remarks>
     public class ObservationScanTests
     {
-        public static TheoryData<string> Measured =>
-            ["reversi", "roster", "chess", "shogi", "blackjack", "deploy"];
-
-        [Theory]
-        [MemberData(nameof(Measured))]
-        public void EveryFieldIsEitherObservedOrCollapsed(string ruleSet)
-        {
-            ObservationScan scan = Scan(ruleSet);
-
-            Assert.DoesNotContain(scan.Observed, scan.Collapsed.Contains);
-            Assert.NotEmpty(scan.Observed);
-        }
-
-        // An audit trail nobody reads is the case the scan exists for: it is written by every
-        // input, so a walk that told states apart by it would never rejoin.
-        [Theory]
-        [InlineData("roster")]
-        [InlineData("deploy")]
-        public void AnAuditTrailCollapses(string ruleSet) =>
-            Assert.Contains("log", Scan(ruleSet).Collapsed);
-
-        // Nothing here is carried that an observation does not reach.
-        [Theory]
-        [InlineData("reversi")]
-        [InlineData("chess")]
-        [InlineData("shogi")]
-        public void ABoardGameObservesAllOfIt(string ruleSet) =>
-            Assert.Empty(Scan(ruleSet).Collapsed);
-
-        // The scan reacts to what a field is used for, not to what it is called. Renaming the
-        // audit trail leaves it on the same side.
-        [Fact]
-        public void TheAnswerIsNotDrawnFromNames()
-        {
-            string renamed = Read("roster").Replace("\"log\"", "\"history\"", StringComparison.Ordinal);
-
-            Assert.Contains("history", ObservationScan.Of(renamed).Collapsed);
-        }
-
         // Reading it from anywhere observable is enough to keep it, which is the half that
         // cannot be seen by looking at the guards alone.
         [Fact]
@@ -105,9 +72,5 @@ namespace Ruledger.Tests
             Assert.Empty(scan.Collapsed);
         }
 
-        private static ObservationScan Scan(string ruleSet) => ObservationScan.Of(Read(ruleSet));
-
-        private static string Read(string ruleSet) =>
-            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "ruleset", ruleSet + ".json"));
     }
 }

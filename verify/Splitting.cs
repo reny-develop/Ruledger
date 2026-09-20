@@ -1,16 +1,17 @@
 // Copyright (c) 2026 Reny
 // Licensed under the Apache License, Version 2.0.
 
-namespace Ruledger.Tests
+namespace Ruledger.Verify
 {
     /// <summary>A rule set split into parts is the same rule set, so its test design is the same.</summary>
     /// <remarks>
-    /// A composite and the one document it stands for are two ways of writing one set of rules.
-    /// Nothing about which one was chosen belongs in a test design, so these hold the two
-    /// test designs against each other. Only the names differ: a composite offers a component's
-    /// input under the alias it gave it, so `raise` in the merged document is `req.raise` here.
+    /// A composite and the one document it stands for are two ways of writing one set of
+    /// rules. Nothing about which one was chosen belongs in a test design, so these hold the
+    /// two designs against each other. Only the names differ: a composite offers a
+    /// component's input under the alias it gave it, so `raise` in the merged document is
+    /// `req.raise` here.
     /// </remarks>
-    public class CompositionTests
+    public class Splitting(Xunit.Abstractions.ITestOutputHelper said)
     {
         /// <summary>Each process, written as a composite and written as one rule set.</summary>
         public static TheoryData<string, string, string[]> BothWays =>
@@ -22,31 +23,25 @@ namespace Ruledger.Tests
 
         [Theory]
         [MemberData(nameof(BothWays))]
-        public void SplittingARuleSetDoesNotChangeTheStatesItIsDesignedOver(
-            string composite, string merged, string[] components)
+        public void SplittingARuleSetDoesNotChangeTheTestDesign(string composite, string merged, string[] components)
         {
             TestDesign split = Derive(composite, components);
             TestDesign whole = Derive(merged, []);
+
+            said.WriteLine($"{composite} against {merged} at budget 300: "
+                + $"{split.States.Count} states and {Fixture.Rejoins(split)} rejoins against "
+                + $"{whole.States.Count} and {Fixture.Rejoins(whole)}, "
+                + $"endings {string.Join('/', Fixture.Results(split))} against "
+                + $"{string.Join('/', Fixture.Results(whole))}");
 
             Assert.Equal(whole.States.Count, split.States.Count);
             Assert.Equal(whole.Unreached, split.Unreached);
-        }
+            Assert.Equal(Sketch(whole), Sketch(split));
 
-        [Theory]
-        [MemberData(nameof(BothWays))]
-        public void SplittingARuleSetDoesNotChangeWhatIsLegalOrWhereItGoes(
-            string composite, string merged, string[] components)
-        {
-            Assert.Equal(Sketch(Derive(merged, [])), Sketch(Derive(composite, components)));
-        }
-
-        [Theory]
-        [MemberData(nameof(BothWays))]
-        public void SplittingARuleSetDoesNotChangeTheEndings(
-            string composite, string merged, string[] components)
-        {
-            TestDesign split = Derive(composite, components);
-            TestDesign whole = Derive(merged, []);
+            // Which positions are the same position has to agree too, or the two documents
+            // would be designed over different state spaces while saying the same things
+            // about the states they happened to share.
+            Assert.Equal(Fixture.Rejoins(whole), Fixture.Rejoins(split));
 
             Assert.Equal(
                 whole.States.Where(state => state.IsTerminal).Select(state => state.Result),
@@ -57,19 +52,16 @@ namespace Ruledger.Tests
         // key at a time. Read whole it would keep `note`, which nothing observes, and the two
         // documents would stop agreeing about which positions are the same position — nine
         // states and no rejoining on one side, seven and two on the other.
-        [Theory]
-        [MemberData(nameof(BothWays))]
-        public void SplittingARuleSetDoesNotChangeWhichPositionsAreTheSamePosition(
-            string composite, string merged, string[] components)
-        {
-            Assert.Equal(Rejoins(Derive(merged, [])), Rejoins(Derive(composite, components)));
-        }
-
         [Fact]
         public void AFieldNothingObservesCollapsesOnBothSides()
         {
-            Assert.Contains("note", ObservationScan.Of(Vocabulary.Read("seating-merged")).Collapsed);
-            Assert.Contains("s.note", ObservationScan.Of(Vocabulary.Read("seating"), Held(["seats"])).Collapsed);
+            said.WriteLine("seating-merged: "
+                + $"{string.Join(", ", ObservationScan.Of(Fixture.RuleSet("seating-merged")).Collapsed)} dropped");
+            said.WriteLine("seating holding seats: "
+                + $"{string.Join(", ", ObservationScan.Of(Fixture.RuleSet("seating"), Held(["seats"])).Collapsed)} dropped");
+
+            Assert.Contains("note", ObservationScan.Of(Fixture.RuleSet("seating-merged")).Collapsed);
+            Assert.Contains("s.note", ObservationScan.Of(Fixture.RuleSet("seating"), Held(["seats"])).Collapsed);
         }
 
         // The guard neither half could write is enforced in both: an assignment only ever
@@ -87,7 +79,9 @@ namespace Ruledger.Tests
         [Fact]
         public void WhatIsObservedIsTheSameFieldsUnderTheAliases()
         {
-            ObservationScan split = ObservationScan.Of(Vocabulary.Read("process"), Held(["request", "shift"]));
+            ObservationScan split = ObservationScan.Of(Fixture.RuleSet("process"), Held(["request", "shift"]));
+
+            said.WriteLine($"process holding request and shift: compared on {string.Join(", ", split.Observed)}");
 
             Assert.Equal(["req.stage", "req.shift", "roster.mon", "roster.tue"], split.Observed);
             Assert.Empty(split.Collapsed);
@@ -100,31 +94,30 @@ namespace Ruledger.Tests
         [Fact]
         public void AComponentObservesMoreInsideACompositeThanAlone()
         {
-            Assert.Contains("shift", ObservationScan.Of(Vocabulary.Read("request")).Collapsed);
-            Assert.Contains("req.shift", ObservationScan.Of(Vocabulary.Read("process"), Held(["request", "shift"])).Observed);
+            Assert.Contains("shift", ObservationScan.Of(Fixture.RuleSet("request")).Collapsed);
+            Assert.Contains(
+                "req.shift",
+                ObservationScan.Of(Fixture.RuleSet("process"), Held(["request", "shift"])).Observed);
         }
 
         [Fact]
         public void ARuleSetThatHoldsOneNotSuppliedIsRefused()
         {
             InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(
-                () => ObservationScan.Of(Vocabulary.Read("process")));
+                () => ObservationScan.Of(Fixture.RuleSet("process")));
 
             Assert.Contains("holds 'request'", refusal.Message, StringComparison.Ordinal);
         }
 
         private static IReadOnlyDictionary<string, string> Held(string[] components) =>
-            components.ToDictionary(static name => name, Vocabulary.Read, StringComparer.Ordinal);
+            components.ToDictionary(static name => name, Fixture.RuleSet, StringComparer.Ordinal);
 
         private static TestDesign Derive(string ruleSet, string[] components) =>
-            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), Held(components), new WalkSettings(Budget: 300));
+            TestDesign.Derive(
+                Fixture.Runtime, Fixture.RuleSet(ruleSet), Held(components), new WalkSettings(Budget: 300));
 
-        private static int Rejoins(TestDesign design) =>
-            design.States.Sum(state => state.Moves.Sum(move => move.Landings.Count(landing => landing.To is not null)))
-                - (design.States.Count - 1);
-
-        // Everything observable about every state, with the alias a composite puts in front of
-        // a component's input taken off, because that is the one thing the two do differ on.
+        // Everything observable about every state, with the alias a composite puts in front
+        // of a component's input taken off, because that is the one thing the two do differ on.
         private static string Sketch(TestDesign design) =>
             string.Join('\n', design.States.Select(state =>
                 $"{state.Name} {state.IsTerminal} {state.Result} {state.Evaluated} "

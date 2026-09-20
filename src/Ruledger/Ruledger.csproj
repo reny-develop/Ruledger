@@ -37,6 +37,7 @@
   -->
   <ItemGroup>
     <InternalsVisibleTo Include="Ruledger.Tests" />
+    <InternalsVisibleTo Include="Ruledger.Verify" />
   </ItemGroup>
 
 </Project>

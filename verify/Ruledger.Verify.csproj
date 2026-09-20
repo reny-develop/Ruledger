@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The measurements. Everything the Rule-Derived Test Design thesis claims about Ruledger is
+    a number, and every one of those numbers comes out of a run of this project: `dotnet test
+    verify/Ruledger.Verify.csproj` prints them and fails if any of them has moved.
+
+    Kept apart from test/ because the two answer different questions. A unit test asks whether
+    a member does what it says; a measurement asks what this rule set, walked this far with
+    these choices, comes out as — and the answer is a number somebody else has to be able to
+    get. The fixtures sit here for the same reason.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Ruledger.Verify</RootNamespace>
+    <AssemblyName>Ruledger.Verify</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Ruledger\Ruledger.csproj" />
+    <ProjectReference Include="..\src\Ruledger.Cli\Ruledger.Cli.csproj" />
+  </ItemGroup>
+
+  <!--
+    The vocabularies the measured rule sets draw on, which land beside this assembly and are
+    found by scanning it. They are referenced rather than built from the sibling repositories
+    on purpose: a measurement is about a published vocabulary, and a plugin rebuilt from
+    whatever is checked out is not one.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Rulealize.Plugin.Arithmetic" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Binding" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Branch" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Chance" Version="1.1.0" />
+    <PackageReference Include="Rulealize.Plugin.Comparison" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Definition" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Grid" Version="1.2.0" />
+    <PackageReference Include="Rulealize.Plugin.Logic" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Record" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Sequence" Version="1.4.0" />
+    <PackageReference Include="Rulealize.Plugin.State" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.Tuple" Version="1.0.1" />
+    <PackageReference Include="Rulealize.Plugin.TypeSchema" Version="1.1.1" />
+  </ItemGroup>
+
+  <!--
+    The measured rule sets and the choices made on them. Copies of documents that live in
+    Rulealize, and copies on purpose: a measurement is a claim about a document, and a
+    document that moves underneath it turns the claim into a report about whatever was there
+    that day.
+  -->
+  <ItemGroup>
+    <Content Include="ruleset\*.json" Link="ruleset\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="choice\*.json" Link="choice\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

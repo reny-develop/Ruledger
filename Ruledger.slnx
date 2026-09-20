@@ -8,4 +8,5 @@
   <Project Path="src/Ruledger/Ruledger.csproj" />
   <Project Path="src/Ruledger.Cli/Ruledger.Cli.csproj" />
   <Project Path="test/Ruledger.Tests.csproj" />
+  <Project Path="verify/Ruledger.Verify.csproj" />
 </Solution>
