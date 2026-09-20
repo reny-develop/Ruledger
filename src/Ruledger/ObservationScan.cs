@@ -371,7 +371,21 @@ namespace Ruledger
 
         private void ReadObject(JsonElement node, HashSet<string> into, HashSet<string> active)
         {
-            switch (Operation(node))
+            string? operation = Operation(node);
+
+            // A composite reads a component as a record, so this is how it reads one field of
+            // one: the alias says which component and the key says which field. Read whole, it
+            // would keep every field the component has, and the same rules written as one
+            // document would collapse the ones nothing observes — the design would then turn
+            // on whether somebody split the rule set. Where the key is computed there is no
+            // one field to name, and the component is kept entire.
+            if (operation == "rec.at" && Narrow(node) is string field)
+            {
+                into.Add(field);
+                return;
+            }
+
+            switch (operation)
             {
                 case "state.get":
                     if (node.TryGetProperty("path", out JsonElement path)
@@ -432,6 +446,43 @@ namespace Ruledger
 
                     return;
             }
+        }
+
+        // The state path a node reads, where it reads one directly rather than computing it.
+        private static string? Reference(JsonElement node)
+        {
+            if (node.ValueKind == JsonValueKind.String)
+            {
+                string text = node.GetString() ?? string.Empty;
+                return text.StartsWith('$') ? text[1..] : null;
+            }
+
+            return Operation(node) == "state.get"
+                && node.TryGetProperty("path", out JsonElement path)
+                && path.ValueKind == JsonValueKind.String
+                ? path.GetString()
+                : null;
+        }
+
+        private string? Narrow(JsonElement node)
+        {
+            if (!node.TryGetProperty("record", out JsonElement record)
+                || !node.TryGetProperty("key", out JsonElement key)
+                || key.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            string name = key.GetString() ?? string.Empty;
+            if (name.Length == 0 || name[0] is '@' or '#')
+            {
+                return null;
+            }
+
+            string? alias = Reference(record);
+            return alias is not null && this.aliases.ContainsKey(alias) && this.declared.Contains(alias + "." + name)
+                ? alias + "." + name
+                : null;
         }
 
         private void Follow(string definition, HashSet<string> into, HashSet<string> active)

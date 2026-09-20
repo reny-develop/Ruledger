@@ -1,0 +1,24 @@
+{
+  // The seating, as a rule set that holds the seats. It reads them to know when everybody is
+  // seated, and it reads them the only way a composite can: as a record, one key at a time.
+  "id": "seating",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Binding" },    { "plugin": "Rulealize.Plugin.Sequence" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Logic" },
+    { "plugin": "Rulealize.Plugin.Branch" },     { "plugin": "Rulealize.Plugin.Record" }
+  ],
+
+  "uses": [ { "ruleSet": "seats", "version": "^1.0", "as": "s" } ],
+
+  "terminal": {
+    "when": { "op": "logic.and", "all": [
+      { "op": "logic.not", "value": { "op": "cmp.isNull",
+        "value": { "op": "rec.at", "record": "$s", "key": "left" } } },
+      { "op": "logic.not", "value": { "op": "cmp.isNull",
+        "value": { "op": "rec.at", "record": "$s", "key": "right" } } } ] },
+    "result": "seated"
+  }
+}

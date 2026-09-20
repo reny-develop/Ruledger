@@ -12,38 +12,64 @@ namespace Ruledger.Tests
     /// </remarks>
     public class CompositionTests
     {
-        private static IReadOnlyDictionary<string, string> Halves =>
-            new Dictionary<string, string>(StringComparer.Ordinal)
+        /// <summary>Each process, written as a composite and written as one rule set.</summary>
+        public static TheoryData<string, string, string[]> BothWays =>
+            new()
             {
-                ["request"] = Vocabulary.Read("request"),
-                ["shift"] = Vocabulary.Read("shift"),
+                { "process", "process-merged", ["request", "shift"] },
+                { "seating", "seating-merged", ["seats"] },
             };
 
-        [Fact]
-        public void SplittingARuleSetDoesNotChangeTheStatesItIsDesignedOver()
+        [Theory]
+        [MemberData(nameof(BothWays))]
+        public void SplittingARuleSetDoesNotChangeTheStatesItIsDesignedOver(
+            string composite, string merged, string[] components)
         {
-            Design split = Composite();
-            Design whole = Merged();
+            Design split = Derive(composite, components);
+            Design whole = Derive(merged, []);
 
             Assert.Equal(whole.States.Count, split.States.Count);
             Assert.Equal(whole.Unreached, split.Unreached);
         }
 
-        [Fact]
-        public void SplittingARuleSetDoesNotChangeWhatIsLegalOrWhereItGoes()
+        [Theory]
+        [MemberData(nameof(BothWays))]
+        public void SplittingARuleSetDoesNotChangeWhatIsLegalOrWhereItGoes(
+            string composite, string merged, string[] components)
         {
-            Assert.Equal(Sketch(Merged()), Sketch(Composite()));
+            Assert.Equal(Sketch(Derive(merged, [])), Sketch(Derive(composite, components)));
         }
 
-        [Fact]
-        public void SplittingARuleSetDoesNotChangeTheEndings()
+        [Theory]
+        [MemberData(nameof(BothWays))]
+        public void SplittingARuleSetDoesNotChangeTheEndings(
+            string composite, string merged, string[] components)
         {
-            Design split = Composite();
-            Design whole = Merged();
+            Design split = Derive(composite, components);
+            Design whole = Derive(merged, []);
 
             Assert.Equal(
                 whole.States.Where(state => state.IsTerminal).Select(state => state.Result),
                 split.States.Where(state => state.IsTerminal).Select(state => state.Result));
+        }
+
+        // What puts that at risk is how a composite has to read a component: as a record, one
+        // key at a time. Read whole it would keep `note`, which nothing observes, and the two
+        // documents would stop agreeing about which positions are the same position — nine
+        // states and no rejoining on one side, seven and two on the other.
+        [Theory]
+        [MemberData(nameof(BothWays))]
+        public void SplittingARuleSetDoesNotChangeWhichPositionsAreTheSamePosition(
+            string composite, string merged, string[] components)
+        {
+            Assert.Equal(Rejoins(Derive(merged, [])), Rejoins(Derive(composite, components)));
+        }
+
+        [Fact]
+        public void AFieldNothingObservesCollapsesOnBothSides()
+        {
+            Assert.Contains("note", ObservationScan.Of(Vocabulary.Read("seating-merged")).Collapsed);
+            Assert.Contains("s.note", ObservationScan.Of(Vocabulary.Read("seating"), Held(["seats"])).Collapsed);
         }
 
         // The guard neither half could write is enforced in both: an assignment only ever
@@ -51,22 +77,20 @@ namespace Ruledger.Tests
         [Fact]
         public void TheGuardNeitherHalfCouldWriteHoldsInBoth()
         {
-            Assert.DoesNotContain("assign", Composite().States[0].Moves.Select(move => move.Input));
-            Assert.DoesNotContain("assign", Merged().States[0].Moves.Select(move => move.Input));
+            Assert.DoesNotContain(
+                "assign",
+                Derive("process", ["request", "shift"]).States[0].Moves.Select(move => move.Input));
+
+            Assert.DoesNotContain("assign", Derive("process-merged", []).States[0].Moves.Select(move => move.Input));
         }
 
-        // What an observation depends on is the component's own answer with the alias in
-        // front, so the two documents collapse the same fields as each other.
         [Fact]
         public void WhatIsObservedIsTheSameFieldsUnderTheAliases()
         {
-            ObservationScan split = ObservationScan.Of(Vocabulary.Read("process"), Halves);
+            ObservationScan split = ObservationScan.Of(Vocabulary.Read("process"), Held(["request", "shift"]));
 
             Assert.Equal(["req.stage", "req.shift", "roster.mon", "roster.tue"], split.Observed);
             Assert.Empty(split.Collapsed);
-            Assert.Equal(
-                ObservationScan.Of(Vocabulary.Read("process-merged")).Observed.Count,
-                split.Observed.Count);
         }
 
         // Held on its own, `request` never reads the shift it was raised for — nothing
@@ -77,7 +101,7 @@ namespace Ruledger.Tests
         public void AComponentObservesMoreInsideACompositeThanAlone()
         {
             Assert.Contains("shift", ObservationScan.Of(Vocabulary.Read("request")).Collapsed);
-            Assert.Contains("req.shift", ObservationScan.Of(Vocabulary.Read("process"), Halves).Observed);
+            Assert.Contains("req.shift", ObservationScan.Of(Vocabulary.Read("process"), Held(["request", "shift"])).Observed);
         }
 
         [Fact]
@@ -89,11 +113,15 @@ namespace Ruledger.Tests
             Assert.Contains("holds 'request'", refusal.Message, StringComparison.Ordinal);
         }
 
-        private static Design Composite() =>
-            Design.Derive(Vocabulary.Runtime, Vocabulary.Read("process"), Halves, new WalkSettings(Budget: 300));
+        private static IReadOnlyDictionary<string, string> Held(string[] components) =>
+            components.ToDictionary(static name => name, Vocabulary.Read, StringComparer.Ordinal);
 
-        private static Design Merged() =>
-            Design.Derive(Vocabulary.Runtime, Vocabulary.Read("process-merged"), new WalkSettings(Budget: 300));
+        private static Design Derive(string ruleSet, string[] components) =>
+            Design.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), Held(components), new WalkSettings(Budget: 300));
+
+        private static int Rejoins(Design design) =>
+            design.States.Sum(state => state.Moves.Sum(move => move.Landings.Count(landing => landing.To is not null)))
+                - (design.States.Count - 1);
 
         // Everything observable about every state, with the alias a composite puts in front of
         // a component's input taken off, because that is the one thing the two do differ on.

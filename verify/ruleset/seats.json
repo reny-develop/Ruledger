@@ -1,0 +1,53 @@
+{
+  // Two seats and two people, each seat taken at most once and each person sitting once.
+  // The same seating is reached by seating either person first, so a walk comes back to a
+  // position it has been in — unless `note`, which nothing observable reads, is let into the
+  // comparison.
+  "id": "seats",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Binding" },    { "plugin": "Rulealize.Plugin.Sequence" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Logic" },
+    { "plugin": "Rulealize.Plugin.Branch" }
+  ],
+
+  "state": {
+    "schema": {
+      "left":  { "op": "type.enum", "values": ["ann", "bo"], "nullable": true },
+      "right": { "op": "type.enum", "values": ["ann", "bo"], "nullable": true },
+      "note":  { "op": "type.list", "element": { "op": "type.string", "minLength": 1 } }
+    },
+    "initial": { "left": null, "right": null, "note": [] }
+  },
+
+  "inputs": {
+    "sit": {
+      "params": {
+        "who":  { "domain": { "op": "seq.of", "of": ["ann", "bo"] } },
+        "seat": { "domain": { "op": "seq.of", "of": ["left", "right"] } }
+      },
+      "when": {
+        "op": "logic.and",
+        "all": [
+          { "op": "cmp.isNull", "value": { "op": "branch.if",
+            "cond": { "op": "cmp.eq", "left": "@seat", "right": "left" },
+            "then": "$left", "else": "$right" } },
+          { "op": "cmp.ne", "left": "$left", "right": "@who" },
+          { "op": "cmp.ne", "left": "$right", "right": "@who" }
+        ]
+      },
+      "effects": [
+        { "op": "state.set", "path": "left", "value": { "op": "branch.if",
+          "cond": { "op": "cmp.eq", "left": "@seat", "right": "left" },
+          "then": "@who", "else": "$left" } },
+        { "op": "state.set", "path": "right", "value": { "op": "branch.if",
+          "cond": { "op": "cmp.eq", "left": "@seat", "right": "right" },
+          "then": "@who", "else": "$right" } },
+        { "op": "state.set", "path": "note",
+          "value": { "op": "seq.concat", "of": ["$note", { "op": "seq.of", "of": ["@who"] }] } }
+      ]
+    }
+  }
+}
