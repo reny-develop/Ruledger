@@ -45,18 +45,25 @@ namespace Ruledger
         private readonly Dictionary<string, JsonElement> definitions = new(StringComparer.Ordinal);
         private readonly HashSet<string> reached = new(StringComparer.Ordinal);
 
-        private ObservationScan(JsonElement root)
+        private ObservationScan(JsonElement root, bool whole = false)
         {
             ReadSchema(root);
             ReadDefinitions(root);
 
-            List<JsonElement> effects = [];
-            foreach (JsonElement point in ObservationPoints(root, effects))
+            if (whole)
             {
-                Read(point, this.reached, []);
+                this.reached.UnionWith(this.declared);
             }
+            else
+            {
+                List<JsonElement> effects = [];
+                foreach (JsonElement point in ObservationPoints(root, effects))
+                {
+                    Read(point, this.reached, []);
+                }
 
-            Settle(effects);
+                Settle(effects);
+            }
 
             Observed = [.. this.declared.Where(this.reached.Contains)];
             Collapsed = [.. this.declared.Where(field => !this.reached.Contains(field))];
@@ -83,6 +90,16 @@ namespace Ruledger
 
             using JsonDocument document = JsonDocument.Parse(ruleSet, ReaderOptions);
             return new ObservationScan(document.RootElement);
+        }
+
+        // Every declared field observed, which is to say nothing collapsed. Not offered to a
+        // caller: it exists so that the measurement can show what happens without collapsing.
+        internal static ObservationScan Whole(string ruleSet)
+        {
+            ArgumentNullException.ThrowIfNull(ruleSet);
+
+            using JsonDocument document = JsonDocument.Parse(ruleSet, ReaderOptions);
+            return new ObservationScan(document.RootElement, whole: true);
         }
 
         private static string? Operation(JsonElement node) =>

@@ -30,4 +30,13 @@
     <PackageReference Include="Rulealize" Version="0.8.0" />
   </ItemGroup>
 
+  <!--
+    So that the measurement can walk a rule set the wrong way on purpose. Showing that
+    collapsing is needed means walking without it, and that is not a thing to offer a caller:
+    a walk told to compare whole states is a walk that does not come back.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ruledger.Tests" />
+  </ItemGroup>
+
 </Project>
