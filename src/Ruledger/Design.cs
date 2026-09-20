@@ -26,17 +26,21 @@ namespace Ruledger
     /// </remarks>
     public sealed class Design
     {
-        private Design(
+        internal Design(
             string ruleSet,
             WalkSettings settings,
-            ObservationScan observation,
+            IReadOnlyList<string> observed,
+            IReadOnlyList<string> collapsed,
             IReadOnlyList<DesignState> states,
+            IReadOnlyList<EditResult> edits,
             int unreached)
         {
             RuleSet = ruleSet;
             Settings = settings;
-            Observation = observation;
+            Observed = observed;
+            Collapsed = collapsed;
             States = states;
+            Edits = edits;
             Unreached = unreached;
         }
 
@@ -46,11 +50,21 @@ namespace Ruledger
         /// <summary>Gets how the walk was told to go, which is recorded because none of it is derived.</summary>
         public WalkSettings Settings { get; }
 
-        /// <summary>Gets which state the walk compared positions on.</summary>
-        public ObservationScan Observation { get; }
+        /// <summary>Gets the state a position was compared on, in the order the schema declares it.</summary>
+        public IReadOnlyList<string> Observed { get; }
+
+        /// <summary>Gets the state that was dropped before comparing, because nothing observable reads it.</summary>
+        public IReadOnlyList<string> Collapsed { get; }
 
         /// <summary>Gets the states, in the order they were first arrived at.</summary>
         public IReadOnlyList<DesignState> States { get; }
+
+        /// <summary>Gets the choices a person made, and what became of each.</summary>
+        /// <remarks>
+        /// Every one of them, carried or not. A choice that could not be taken is reported and
+        /// never quietly dropped back to what the machine would have picked.
+        /// </remarks>
+        public IReadOnlyList<EditResult> Edits { get; }
 
         /// <summary>Gets how many landings the budget stopped before.</summary>
         /// <remarks>
@@ -74,6 +88,7 @@ namespace Ruledger
         /// <param name="ruleSet">The rule set, as text.</param>
         /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
         /// <param name="settings">How far to go. The default budget is three thousand states.</param>
+        /// <param name="edits">Choices a person made, which the walk takes first where it can.</param>
         /// <returns>The design.</returns>
         /// <remarks>
         /// Splitting a rule set into a composite and the parts it holds is a way of writing it,
@@ -88,34 +103,58 @@ namespace Ruledger
             RuleRuntime runtime,
             string ruleSet,
             IReadOnlyDictionary<string, string>? components,
-            WalkSettings? settings = null)
+            WalkSettings? settings = null,
+            IReadOnlyList<DesignEdit>? edits = null)
         {
             ArgumentNullException.ThrowIfNull(runtime);
             ArgumentNullException.ThrowIfNull(ruleSet);
 
-            return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components));
+            return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components), edits);
         }
+
+        /// <summary>Reads a design back.</summary>
+        /// <param name="design">A <c>ruledger/design/v1</c> document.</param>
+        /// <returns>What it says.</returns>
+        /// <exception cref="JsonException">The text is not JSON.</exception>
+        /// <exception cref="InvalidOperationException">The text is not a design document.</exception>
+        public static Design FromJson(string design) => DesignDocument.Read(design);
+
+        /// <summary>Writes this design as a <c>ruledger/design/v1</c> document.</summary>
+        /// <returns>The document.</returns>
+        /// <remarks>
+        /// This is the design — what a person reads against what they meant, what they put
+        /// their choices into, and what gets committed. A line-oriented rendering of it is a
+        /// view of this, and not a second copy of it.
+        /// </remarks>
+        public string ToJson() => DesignDocument.Write(this);
 
         internal static Design Derive(
             RuleRuntime runtime,
             string ruleSet,
             IReadOnlyDictionary<string, string>? components,
             WalkSettings? settings,
-            ObservationScan observation)
+            ObservationScan observation,
+            IReadOnlyList<DesignEdit>? edits = null)
         {
             Walker walker = new(
                 runtime.CreateContext(ruleSet, components),
                 observation,
-                settings ?? new WalkSettings());
+                settings ?? new WalkSettings(),
+                edits ?? []);
 
             return walker.Walk();
         }
 
-        private sealed class Walker(RuleContext rules, ObservationScan observation, WalkSettings settings)
+        private sealed class Walker(
+            RuleContext rules,
+            ObservationScan observation,
+            WalkSettings settings,
+            IReadOnlyList<DesignEdit> edits)
         {
             private readonly Dictionary<string, string> seen = new(StringComparer.Ordinal);
             private readonly List<Entry> order = [];
             private readonly Stack<Entry> descending = new();
+            private readonly Dictionary<DesignEdit, EditOutcome> outcomes = [];
             private int unreached;
 
             public Design Walk()
@@ -141,8 +180,12 @@ namespace Ruledger
                 return new Design(
                     rules.RuleSet,
                     settings,
-                    observation,
+                    observation.Observed,
+                    observation.Collapsed,
                     [.. this.order.Select(static entry => entry.Close())],
+                    [.. edits.Select(edit => new EditResult(
+                        edit,
+                        this.outcomes.TryGetValue(edit, out EditOutcome outcome) ? outcome : EditOutcome.NotReached))],
                     this.unreached);
             }
 
@@ -181,6 +224,37 @@ namespace Ruledger
                 }
             }
 
+            // A composite keeps each component's state under its alias, and keeps it as a state
+            // document rather than as bare fields, so `req.stage` is one step through the alias
+            // and one through what the component wrote.
+            private static JsonElement? Locate(JsonElement data, string field)
+            {
+                JsonElement node = data;
+                foreach (string segment in field.Split('.'))
+                {
+                    if (node.ValueKind == JsonValueKind.Object
+                        && node.TryGetProperty("ruleSet", out _)
+                        && node.TryGetProperty("data", out JsonElement held))
+                    {
+                        node = held;
+                    }
+
+                    if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(segment, out node))
+                    {
+                        return null;
+                    }
+                }
+
+                return node;
+            }
+
+            private static bool Matches(DesignEdit edit, Move move) =>
+                string.Equals(edit.Input, move.Input, StringComparison.Ordinal)
+                && edit.Arguments.Count == move.Arguments.Count
+                && edit.Arguments.All(argument =>
+                    move.Arguments.TryGetValue(argument.Key, out string? value)
+                    && string.Equals(value, argument.Value, StringComparison.Ordinal));
+
             private string? Arrive(string state, string? from, string? by)
             {
                 string key = Key(state);
@@ -211,10 +285,12 @@ namespace Ruledger
                 entry.Evaluated = legal.Evaluated;
                 entry.Truncated = legal.Truncated;
 
+                List<List<Step>> routes = [];
                 foreach (ValidInput input in legal)
                 {
                     string document = input.ToInputDocument(rules.RuleSet);
                     List<Landing> landings = [];
+                    List<Step> ahead = [];
 
                     // Past the end there is nothing to reach, so the moves a rule set still
                     // offers are written down and none of them is followed.
@@ -227,15 +303,46 @@ namespace Ruledger
                                 outcome.Draws.IsEmpty ? null : outcome.ToOutcomeDocument(rules.RuleSet));
 
                             landings.Add(landing);
-                            entry.Ahead.Add(new Step(landing, outcome.Result.State, input.ToString()));
+                            ahead.Add(new Step(landing, outcome.Result.State, input.ToString()));
                         }
                     }
 
-                    entry.Moves.Add(new Move(input.Input, input.ToString(), input.Actor, document, landings));
+                    entry.Moves.Add(new Move(
+                        input.Input,
+                        input.Arguments.ToDictionary(static a => a.Key, static a => a.Value, StringComparer.Ordinal),
+                        input.ToString(),
+                        input.Actor,
+                        document,
+                        landings));
+
+                    routes.Add(ahead);
                 }
 
+                entry.Ahead.AddRange(Ordered(name, entry.Moves, routes));
                 this.descending.Push(entry);
                 return name;
+            }
+
+            // The one place a person's writing reaches. Which inputs are legal here is an
+            // observation and keeps the order the runtime offered them in; which one the walk
+            // goes down first is a choice, and that is what an edit replaces.
+            private IEnumerable<Step> Ordered(string name, List<Move> moves, List<List<Step>> routes)
+            {
+                List<int> taken = [];
+                foreach (DesignEdit edit in edits.Where(edit => string.Equals(edit.State, name, StringComparison.Ordinal)))
+                {
+                    int found = moves.FindIndex(move => Matches(edit, move));
+                    this.outcomes[edit] = found < 0 ? EditOutcome.NotLegal : EditOutcome.Carried;
+
+                    if (found >= 0 && !taken.Contains(found))
+                    {
+                        taken.Add(found);
+                    }
+                }
+
+                return taken
+                    .Concat(Enumerable.Range(0, routes.Count).Where(index => !taken.Contains(index)))
+                    .SelectMany(index => routes[index]);
             }
 
             // Two states are the same state when they agree on everything an observation can
@@ -263,30 +370,6 @@ namespace Ruledger
                 }
 
                 return key.ToString();
-            }
-
-            // A composite keeps each component's state under its alias, and keeps it as a state
-            // document rather than as bare fields, so `req.stage` is one step through the alias
-            // and one through what the component wrote.
-            private static JsonElement? Locate(JsonElement data, string field)
-            {
-                JsonElement node = data;
-                foreach (string segment in field.Split('.'))
-                {
-                    if (node.ValueKind == JsonValueKind.Object
-                        && node.TryGetProperty("ruleSet", out _)
-                        && node.TryGetProperty("data", out JsonElement held))
-                    {
-                        node = held;
-                    }
-
-                    if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(segment, out node))
-                    {
-                        return null;
-                    }
-                }
-
-                return node;
             }
 
             private sealed record Step(Landing Landing, string State, string By);

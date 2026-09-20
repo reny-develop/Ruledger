@@ -96,9 +96,16 @@ namespace Ruledger
     /// <summary>One input that is legal in a state, and where it goes.</summary>
     public sealed class Move
     {
-        internal Move(string input, string text, string? actor, string document, IReadOnlyList<Landing> landings)
+        internal Move(
+            string input,
+            IReadOnlyDictionary<string, string> arguments,
+            string text,
+            string? actor,
+            string document,
+            IReadOnlyList<Landing> landings)
         {
             Input = input;
+            Arguments = arguments;
             Text = text;
             Actor = actor;
             Document = document;
@@ -107,6 +114,9 @@ namespace Ruledger
 
         /// <summary>Gets the name of the input.</summary>
         public string Input { get; }
+
+        /// <summary>Gets what it was called with, by parameter name, each in the text form the runtime writes.</summary>
+        public IReadOnlyDictionary<string, string> Arguments { get; }
 
         /// <summary>Gets the input and its arguments, written as <c>place(at: c4)</c>.</summary>
         public string Text { get; }
