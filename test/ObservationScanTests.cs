@@ -75,6 +75,56 @@ namespace Ruledger.Tests
             Assert.Empty(scan.Collapsed);
         }
 
+        // A legal input is its name, its arguments and whose it is, so whatever decides the
+        // mover is observed like whatever decides legality. Collapsing a field only `actor`
+        // reads would merge two states the design goes on printing two movers for.
+        [Fact]
+        public void WhoseMoveItIsIsPartOfWhatIsLegal()
+        {
+            const string ruleSet = """
+                {
+                  "id": "relay", "version": "1.0.0",
+                  "state": {
+                    "schema": { "stage": {}, "holder": {} },
+                    "initial": { "stage": "open", "holder": "ann" }
+                  },
+                  "inputs": {
+                    "pass": {
+                      "actor": "$holder",
+                      "when": { "op": "cmp.eq", "left": "$stage", "right": "open" },
+                      "effects": [ { "op": "state.set", "path": "holder", "value": "bo" } ]
+                    }
+                  },
+                  "terminal": { "when": { "op": "cmp.eq", "left": "$stage", "right": "done" }, "result": "done" }
+                }
+                """;
+
+            ObservationScan scan = ObservationScan.Of(ruleSet);
+
+            Assert.Equal(["stage", "holder"], scan.Observed);
+            Assert.Empty(scan.Collapsed);
+        }
+
+        // Its states are the product of its components, and what its guards read is in
+        // documents it does not carry. Saying so beats answering with a set that is quietly
+        // missing fields.
+        [Fact]
+        public void ARuleSetThatHoldsOthersIsRefused()
+        {
+            const string ruleSet = """
+                {
+                  "id": "composite", "version": "1.0.0",
+                  "uses": [ { "ruleSet": "Rulealize.RuleSet.Request", "version": "^1.0", "as": "req" } ],
+                  "state": { "schema": {}, "initial": {} },
+                  "inputs": {}
+                }
+                """;
+
+            NotSupportedException refusal = Assert.Throws<NotSupportedException>(() => ObservationScan.Of(ruleSet));
+
+            Assert.Contains("Walk the components", refusal.Message, StringComparison.Ordinal);
+        }
+
         private static ObservationScan Scan(string ruleSet) => ObservationScan.Of(Read(ruleSet));
 
         private static string Read(string ruleSet) =>

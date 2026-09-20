@@ -84,12 +84,33 @@ namespace Ruledger
         /// <param name="ruleSet">The document, as text. Comments and trailing commas are accepted.</param>
         /// <returns>What the document's observations depend on.</returns>
         /// <exception cref="JsonException">The text is not JSON.</exception>
+        /// <exception cref="NotSupportedException">The rule set holds other rule sets.</exception>
         public static ObservationScan Of(string ruleSet)
         {
             ArgumentNullException.ThrowIfNull(ruleSet);
 
             using JsonDocument document = JsonDocument.Parse(ruleSet, ReaderOptions);
+            Refuse(document.RootElement);
             return new ObservationScan(document.RootElement);
+        }
+
+        // A rule set that holds others reads their state through their guards, which are in
+        // documents this has not been given, so the answer would be a set with fields missing
+        // from it and no sign that any were. Refusing says so; collapsing a field that turns
+        // out to matter does not.
+        //
+        // There is a better reason to walk the parts anyway: a composite's reachable set is
+        // the product of its components, and whatever a walk of one component found holds
+        // inside every composite that holds it.
+        internal static void Refuse(JsonElement root)
+        {
+            if (root.TryGetProperty("uses", out JsonElement uses) && uses.ValueKind == JsonValueKind.Array && uses.GetArrayLength() > 0)
+            {
+                throw new NotSupportedException(
+                    "This rule set holds others, and a rule set that holds others is not walked: "
+                    + "its reachable states are the product of its components, and what its guards "
+                    + "read lives in documents this one does not carry. Walk the components.");
+            }
         }
 
         // Every declared field observed, which is to say nothing collapsed. Not offered to a
@@ -117,8 +138,13 @@ namespace Ruledger
                 ? body
                 : definition;
 
-        // The four places an observation comes from, and — collected on the way past, because
-        // they sit under the same inputs — every effect, which the fixed point needs.
+        // Everywhere an observation comes from, and — collected on the way past, because they
+        // sit under the same inputs — every effect, which the fixed point needs.
+        //
+        // A legal input is its name, its arguments and whose it is, so all three of the keys
+        // that build one are here. `actor` is not a fourth thing that can be observed; it is
+        // part of the first, and leaving it out would collapse a field only it reads while
+        // the design went on printing two different movers for the one state.
         private static IEnumerable<JsonElement> ObservationPoints(JsonElement root, List<JsonElement> effects)
         {
             if (root.TryGetProperty("inputs", out JsonElement inputs)
@@ -129,6 +155,11 @@ namespace Ruledger
                     if (input.Value.TryGetProperty("when", out JsonElement guard))
                     {
                         yield return guard;
+                    }
+
+                    if (input.Value.TryGetProperty("actor", out JsonElement actor))
+                    {
+                        yield return actor;
                     }
 
                     if (input.Value.TryGetProperty("params", out JsonElement parameters)

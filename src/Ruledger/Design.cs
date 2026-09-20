@@ -66,6 +66,7 @@ namespace Ruledger
         /// <param name="settings">How far to go. The default budget is three thousand states.</param>
         /// <returns>The design.</returns>
         /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
+        /// <exception cref="NotSupportedException">The rule set holds other rule sets.</exception>
         public static Design Derive(RuleRuntime runtime, string ruleSet, WalkSettings? settings = null)
         {
             ArgumentNullException.ThrowIfNull(runtime);
