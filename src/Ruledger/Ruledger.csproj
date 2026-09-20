@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>Ruledger</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1605;CS1591</WarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    The runtime. Walking the states is its two calls in the same order every host makes them,
+    and the expected values are what it answers — there is no second implementation of the
+    rules here to disagree with it.
+
+    Reading the document statically is this project's own, because nothing published reports
+    which state a guard reads. Where that costs something is written down in
+    ObservationScan.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Rulealize" Version="0.8.0" />
+  </ItemGroup>
+
+</Project>
