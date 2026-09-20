@@ -32,13 +32,15 @@ configuration, and it is recorded alongside the design.
 | Visualize or edit the ruleset | Out. A ruleset is still JSON, which is hard to hand-write even for an engineer |
 | Record approvals | Out. Approval is committing the design; expiry is the diff coming back non-empty. Git already does both |
 
-The reasoning behind each line is in the thesis — see §6.5 and §6.6.
+The reasoning behind each line is in the thesis — see §6.5 and §6.6. What has to exist
+before v1 is finished — to prove the method, and to let someone experience it — is
+[doc/v1.md](doc/v1.md).
 
 ## Status
 
-Pre-implementation. This repository holds nothing but this README yet. The tool is C#: it
-needs the Rulealize runtime, and reading the ruleset statically is part of the same job, not a
-separate program in another language.
+Pre-implementation. The scope is settled and written down in [doc/v1.md](doc/v1.md); no code
+is written yet. The tool is C#: it needs the Rulealize runtime, and reading the ruleset
+statically is part of the same job, not a separate program in another language.
 
 ## License
 
