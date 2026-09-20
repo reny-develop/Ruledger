@@ -8,8 +8,8 @@
   // definitions, twenty-one of them reordered; every reference moved with them, and every
   // `def.call` writes its arguments in the new order.
   //
-  // The largest of the renamed twins and much the slowest to walk, so it is measured at a
-  // smaller budget than the rest and the measurement says which.
+  // The largest of the renamed twins and much the slowest to walk, so it is measured over
+  // fewer states than the rest and the measurement says how many.
 
   "requires": [
     {
