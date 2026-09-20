@@ -1,0 +1,708 @@
+{
+  "$schema": "rulealize/ruleset/v1",
+  "id": "roster",
+  "version": "1.2.0",
+
+  // roster with every definition renamed and every definition of more than one parameter
+  // taking its parameters the other way round, and nothing else touched — fifteen
+  // definitions, two of them reordered: `names` is `weekNames`, `mayWork` is
+  // `weekMayWork` and takes (id, who) where it took (who, id), and so on through all of
+  // them. Every reference moved with them, and every `def.call` writes its arguments in the
+  // new order.
+  //
+  // So the rules decide exactly what they decided before, and the whole of what moved is how
+  // the document is written. It is the business-domain half of the pair `reversi` and
+  // `reversi-renamed` make: a person's choices name an input in a state, and neither of
+  // those is anything about a rule set's structure.
+
+  "requires": [
+    {
+      "plugin": "Rulealize.Plugin.Binding",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Branch",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Definition",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Logic",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Comparison",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Arithmetic",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.TypeSchema",
+      "version": "^1.1"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Sequence",
+      "version": "^1.2"
+    },
+    {
+      "plugin": "Rulealize.Plugin.State",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Record",
+      "version": "^1.0"
+    }
+  ],
+  "state": {
+    "schema": {
+      "staff": {
+        "op": "type.list",
+        "element": {
+          "op": "rec.of",
+          "fields": {
+            "name": {
+              "op": "type.string",
+              "minLength": 1
+            },
+            "capacity": {
+              "op": "type.int",
+              "min": 0
+            },
+            "senior": {
+              "op": "type.bool"
+            }
+          }
+        }
+      },
+      "shifts": {
+        "op": "type.list",
+        "element": {
+          "op": "rec.of",
+          "fields": {
+            "id": {
+              "op": "type.string",
+              "minLength": 1
+            },
+            "day": {
+              "op": "type.string",
+              "minLength": 1
+            },
+            "senior": {
+              "op": "type.bool"
+            }
+          }
+        }
+      },
+      "assigned": {
+        "op": "type.list",
+        "element": {
+          "op": "rec.of",
+          "fields": {
+            "shift": {
+              "op": "type.string",
+              "minLength": 1
+            },
+            "who": {
+              "op": "type.string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "log": {
+        "op": "type.list",
+        "maxLength": 5,
+        "element": {
+          "op": "rec.of",
+          "fields": {
+            "action": {
+              "op": "type.enum",
+              "values": [
+                "assign",
+                "release"
+              ]
+            },
+            "who": {
+              "op": "type.string",
+              "minLength": 1
+            },
+            "shift": {
+              "op": "type.string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "initial": {
+      "staff": [
+        {
+          "name": "ann",
+          "capacity": 3,
+          "senior": true
+        },
+        {
+          "name": "bo",
+          "capacity": 3,
+          "senior": false
+        },
+        {
+          "name": "cy",
+          "capacity": 2,
+          "senior": true
+        },
+        {
+          "name": "di",
+          "capacity": 2,
+          "senior": false
+        }
+      ],
+      "shifts": [
+        {
+          "id": "mon-am",
+          "day": "mon",
+          "senior": true
+        },
+        {
+          "id": "mon-pm",
+          "day": "mon",
+          "senior": false
+        },
+        {
+          "id": "tue-am",
+          "day": "tue",
+          "senior": false
+        },
+        {
+          "id": "tue-pm",
+          "day": "tue",
+          "senior": false
+        },
+        {
+          "id": "wed-am",
+          "day": "wed",
+          "senior": true
+        },
+        {
+          "id": "wed-pm",
+          "day": "wed",
+          "senior": false
+        },
+        {
+          "id": "thu-am",
+          "day": "thu",
+          "senior": false
+        },
+        {
+          "id": "thu-pm",
+          "day": "thu",
+          "senior": false
+        },
+        {
+          "id": "fri-am",
+          "day": "fri",
+          "senior": true
+        },
+        {
+          "id": "fri-pm",
+          "day": "fri",
+          "senior": false
+        }
+      ],
+      "assigned": [],
+      "log": []
+    }
+  },
+  "definitions": {
+    "weekNames": {
+      "op": "seq.select",
+      "source": "$staff",
+      "as": "s",
+      "select": {
+        "op": "rec.at",
+        "record": "@s",
+        "key": "name"
+      }
+    },
+    "weekShiftIds": {
+      "op": "seq.select",
+      "source": "$shifts",
+      "as": "s",
+      "select": {
+        "op": "rec.at",
+        "record": "@s",
+        "key": "id"
+      }
+    },
+    "weekPerson": {
+      "params": [
+        "who"
+      ],
+      "body": {
+        "op": "seq.elementAt",
+        "index": 0,
+        "source": {
+          "op": "seq.where",
+          "source": "$staff",
+          "as": "s",
+          "predicate": {
+            "op": "cmp.eq",
+            "left": {
+              "op": "rec.at",
+              "record": "@s",
+              "key": "name"
+            },
+            "right": "@who"
+          }
+        }
+      }
+    },
+    "weekShift": {
+      "params": [
+        "id"
+      ],
+      "body": {
+        "op": "seq.elementAt",
+        "index": 0,
+        "source": {
+          "op": "seq.where",
+          "source": "$shifts",
+          "as": "s",
+          "predicate": {
+            "op": "cmp.eq",
+            "left": {
+              "op": "rec.at",
+              "record": "@s",
+              "key": "id"
+            },
+            "right": "@id"
+          }
+        }
+      }
+    },
+    "weekDayOf": {
+      "params": [
+        "id"
+      ],
+      "body": {
+        "op": "rec.at",
+        "key": "day",
+        "record": {
+          "op": "def.call",
+          "def": "weekShift",
+          "args": {
+            "id": "@id"
+          }
+        }
+      }
+    },
+    "weekOn": {
+      "params": [
+        "id"
+      ],
+      "body": {
+        "op": "seq.elementAt",
+        "index": 0,
+        "source": {
+          "op": "seq.select",
+          "as": "a",
+          "select": {
+            "op": "rec.at",
+            "record": "@a",
+            "key": "who"
+          },
+          "source": {
+            "op": "seq.where",
+            "source": "$assigned",
+            "as": "a",
+            "predicate": {
+              "op": "cmp.eq",
+              "left": {
+                "op": "rec.at",
+                "record": "@a",
+                "key": "shift"
+              },
+              "right": "@id"
+            }
+          }
+        }
+      }
+    },
+    "weekFree": {
+      "params": [
+        "id"
+      ],
+      "body": {
+        "op": "cmp.isNull",
+        "value": {
+          "op": "def.call",
+          "def": "weekOn",
+          "args": {
+            "id": "@id"
+          }
+        }
+      }
+    },
+    "weekOpenShifts": {
+      "op": "seq.where",
+      "source": "#weekShiftIds",
+      "as": "s",
+      "predicate": {
+        "op": "def.call",
+        "def": "weekFree",
+        "args": {
+          "id": "@s"
+        }
+      }
+    },
+    "weekTakenShifts": {
+      "op": "seq.where",
+      "source": "#weekShiftIds",
+      "as": "s",
+      "predicate": {
+        "op": "logic.not",
+        "value": {
+          "op": "def.call",
+          "def": "weekFree",
+          "args": {
+            "id": "@s"
+          }
+        }
+      }
+    },
+    "weekLoad": {
+      "params": [
+        "who"
+      ],
+      "body": {
+        "op": "seq.count",
+        "source": "$assigned",
+        "as": "a",
+        "where": {
+          "op": "cmp.eq",
+          "left": {
+            "op": "rec.at",
+            "record": "@a",
+            "key": "who"
+          },
+          "right": "@who"
+        }
+      }
+    },
+    "weekWorksThatDay": {
+      "params": [
+        "id",
+        "who"
+      ],
+      "body": {
+        "op": "seq.any",
+        "source": "$assigned",
+        "as": "a",
+        "predicate": {
+          "op": "logic.and",
+          "all": [
+            {
+              "op": "cmp.eq",
+              "left": {
+                "op": "rec.at",
+                "record": "@a",
+                "key": "who"
+              },
+              "right": "@who"
+            },
+            {
+              "op": "cmp.eq",
+              "left": {
+                "op": "def.call",
+                "def": "weekDayOf",
+                "args": {
+                  "id": {
+                    "op": "rec.at",
+                    "record": "@a",
+                    "key": "shift"
+                  }
+                }
+              },
+              "right": {
+                "op": "def.call",
+                "def": "weekDayOf",
+                "args": {
+                  "id": "@id"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "weekMayWork": {
+      "params": [
+        "id",
+        "who"
+      ],
+      "body": {
+        "op": "logic.and",
+        "all": [
+          {
+            "op": "cmp.lt",
+            "left": {
+              "op": "def.call",
+              "def": "weekLoad",
+              "args": {
+                "who": "@who"
+              }
+            },
+            "right": {
+              "op": "rec.at",
+              "key": "capacity",
+              "record": {
+                "op": "def.call",
+                "def": "weekPerson",
+                "args": {
+                  "who": "@who"
+                }
+              }
+            }
+          },
+          {
+            "op": "logic.or",
+            "any": [
+              {
+                "op": "logic.not",
+                "value": {
+                  "op": "rec.at",
+                  "key": "senior",
+                  "record": {
+                    "op": "def.call",
+                    "def": "weekShift",
+                    "args": {
+                      "id": "@id"
+                    }
+                  }
+                }
+              },
+              {
+                "op": "rec.at",
+                "key": "senior",
+                "record": {
+                  "op": "def.call",
+                  "def": "weekPerson",
+                  "args": {
+                    "who": "@who"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "op": "logic.not",
+            "value": {
+              "op": "def.call",
+              "def": "weekWorksThatDay",
+              "args": {
+                "who": "@who",
+                "id": "@id"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "weekAnyoneCanBePlaced": {
+      "op": "seq.any",
+      "source": "#weekOpenShifts",
+      "as": "s",
+      "predicate": {
+        "op": "seq.any",
+        "source": "#weekNames",
+        "as": "p",
+        "predicate": {
+          "op": "def.call",
+          "def": "weekMayWork",
+          "args": {
+            "who": "@p",
+            "id": "@s"
+          }
+        }
+      }
+    },
+    "weekUnfilled": {
+      "op": "seq.count",
+      "source": "#weekOpenShifts"
+    },
+    "weekRecent": {
+      "params": [
+        "entry"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "all": {
+            "op": "seq.concat",
+            "of": [
+              "$log",
+              {
+                "op": "seq.of",
+                "of": [
+                  "@entry"
+                ]
+              }
+            ]
+          }
+        },
+        "in": {
+          "op": "seq.skip",
+          "source": "@all",
+          "count": {
+            "op": "math.max",
+            "of": [
+              0,
+              {
+                "op": "math.sub",
+                "left": {
+                  "op": "seq.count",
+                  "source": "@all"
+                },
+                "right": 5
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "inputs": {
+    "assign": {
+      "params": {
+        "who": {
+          "domain": "#weekNames"
+        },
+        "shift": {
+          "domain": "#weekOpenShifts"
+        }
+      },
+      "when": {
+        "op": "def.call",
+        "def": "weekMayWork",
+        "args": {
+          "who": "@who",
+          "id": "@shift"
+        }
+      },
+      "effects": [
+        {
+          "op": "state.set",
+          "path": "assigned",
+          "value": {
+            "op": "seq.concat",
+            "of": [
+              "$assigned",
+              {
+                "op": "seq.of",
+                "of": [
+                  {
+                    "shift": "@shift",
+                    "who": "@who"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "log",
+          "value": {
+            "op": "def.call",
+            "def": "weekRecent",
+            "args": {
+              "entry": {
+                "action": "assign",
+                "who": "@who",
+                "shift": "@shift"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "release": {
+      "params": {
+        "shift": {
+          "domain": "#weekTakenShifts"
+        }
+      },
+      "effects": [
+        {
+          "op": "state.set",
+          "path": "assigned",
+          "value": {
+            "op": "seq.where",
+            "source": "$assigned",
+            "as": "a",
+            "predicate": {
+              "op": "cmp.ne",
+              "left": {
+                "op": "rec.at",
+                "record": "@a",
+                "key": "shift"
+              },
+              "right": "@shift"
+            }
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "log",
+          "value": {
+            "op": "def.call",
+            "def": "weekRecent",
+            "args": {
+              "entry": {
+                "action": "release",
+                "who": {
+                  "op": "def.call",
+                  "def": "weekOn",
+                  "args": {
+                    "id": "@shift"
+                  }
+                },
+                "shift": "@shift"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "terminal": {
+    "when": {
+      "op": "logic.or",
+      "any": [
+        {
+          "op": "cmp.eq",
+          "left": "#weekUnfilled",
+          "right": 0
+        },
+        {
+          "op": "logic.not",
+          "value": "#weekAnyoneCanBePlaced"
+        }
+      ]
+    },
+    "result": {
+      "op": "branch.if",
+      "cond": {
+        "op": "cmp.eq",
+        "left": "#weekUnfilled",
+        "right": 0
+      },
+      "then": "complete",
+      "else": "stuck"
+    }
+  }
+}

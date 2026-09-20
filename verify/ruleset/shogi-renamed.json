@@ -1,0 +1,1907 @@
+{
+  "$schema": "rulealize/ruleset/v1",
+  "id": "shogi",
+  "version": "1.1.0",
+
+  // shogi with every definition renamed and every definition of more than one parameter
+  // taking its parameters the other way round, and nothing else touched — thirty-nine
+  // definitions, twenty-one of them reordered; every reference moved with them, and every
+  // `def.call` writes its arguments in the new order.
+  //
+  // The largest of the renamed twins and much the slowest to walk, so it is measured at a
+  // smaller budget than the rest and the measurement says which.
+
+  "requires": [
+    {
+      "plugin": "Rulealize.Plugin.Binding",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Branch",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Definition",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Logic",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Comparison",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Arithmetic",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.TypeSchema",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Sequence",
+      "version": "^1.1"
+    },
+    {
+      "plugin": "Rulealize.Plugin.State",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Grid",
+      "version": "^1.1"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Tuple",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Record",
+      "version": "^1.0"
+    }
+  ],
+  "state": {
+    "schema": {
+      "board": {
+        "op": "grid.board",
+        "width": 9,
+        "height": 9,
+        "coord": "algebraic",
+        "cell": {
+          "op": "type.enum",
+          "values": [
+            "P",
+            "L",
+            "N",
+            "S",
+            "G",
+            "B",
+            "R",
+            "K",
+            "+P",
+            "+L",
+            "+N",
+            "+S",
+            "+B",
+            "+R",
+            "p",
+            "l",
+            "n",
+            "s",
+            "g",
+            "b",
+            "r",
+            "k",
+            "+p",
+            "+l",
+            "+n",
+            "+s",
+            "+b",
+            "+r"
+          ],
+          "nullable": true
+        }
+      },
+      "turn": {
+        "op": "type.enum",
+        "values": [
+          "black",
+          "white"
+        ]
+      },
+      "hand": {
+        "op": "rec.map",
+        "keys": [
+          "black",
+          "white"
+        ],
+        "value": {
+          "op": "rec.map",
+          "keys": [
+            "P",
+            "L",
+            "N",
+            "S",
+            "G",
+            "B",
+            "R"
+          ],
+          "value": {
+            "op": "type.int",
+            "min": 0
+          }
+        }
+      }
+    },
+    "initial": {
+      "board": {
+        "a9": "l",
+        "b9": "n",
+        "c9": "s",
+        "d9": "g",
+        "e9": "k",
+        "f9": "g",
+        "g9": "s",
+        "h9": "n",
+        "i9": "l",
+        "b8": "b",
+        "h8": "r",
+        "a7": "p",
+        "b7": "p",
+        "c7": "p",
+        "d7": "p",
+        "e7": "p",
+        "f7": "p",
+        "g7": "p",
+        "h7": "p",
+        "i7": "p",
+        "a3": "P",
+        "b3": "P",
+        "c3": "P",
+        "d3": "P",
+        "e3": "P",
+        "f3": "P",
+        "g3": "P",
+        "h3": "P",
+        "i3": "P",
+        "b2": "R",
+        "h2": "B",
+        "a1": "L",
+        "b1": "N",
+        "c1": "S",
+        "d1": "G",
+        "e1": "K",
+        "f1": "G",
+        "g1": "S",
+        "h1": "N",
+        "i1": "L"
+      },
+      "turn": "black",
+      "hand": {
+        "black": {
+          "P": 0,
+          "L": 0,
+          "N": 0,
+          "S": 0,
+          "G": 0,
+          "B": 0,
+          "R": 0
+        },
+        "white": {
+          "P": 0,
+          "L": 0,
+          "N": 0,
+          "S": 0,
+          "G": 0,
+          "B": 0,
+          "R": 0
+        }
+      }
+    }
+  },
+  "definitions": {
+    "playMe": "$turn",
+    "playFoe": {
+      "op": "branch.match",
+      "value": "$turn",
+      "cases": {
+        "black": "white",
+        "white": "black"
+      }
+    },
+    "playOther": {
+      "params": [
+        "colour"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@colour",
+        "cases": {
+          "black": "white",
+          "white": "black"
+        }
+      }
+    },
+    "playCode": {
+      "params": [
+        "kind",
+        "colour"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@colour",
+        "cases": {
+          "black": "@kind",
+          "white": {
+            "op": "branch.match",
+            "value": "@kind",
+            "cases": {
+              "P": "p",
+              "L": "l",
+              "N": "n",
+              "S": "s",
+              "G": "g",
+              "B": "b",
+              "R": "r",
+              "K": "k",
+              "+P": "+p",
+              "+L": "+l",
+              "+N": "+n",
+              "+S": "+s",
+              "+B": "+b",
+              "+R": "+r"
+            }
+          }
+        }
+      }
+    },
+    "playPieceAt": {
+      "params": [
+        "c",
+        "b"
+      ],
+      "body": {
+        "op": "cmp.coalesce",
+        "of": [
+          {
+            "op": "grid.at",
+            "grid": "@b",
+            "coord": "@c"
+          },
+          "."
+        ]
+      }
+    },
+    "playKindAt": {
+      "params": [
+        "c",
+        "b"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": {
+          "op": "def.call",
+          "def": "playPieceAt",
+          "args": {
+            "b": "@b",
+            "c": "@c"
+          }
+        },
+        "cases": {
+          "P": "P",
+          "L": "L",
+          "N": "N",
+          "S": "S",
+          "G": "G",
+          "B": "B",
+          "R": "R",
+          "K": "K",
+          "+P": "+P",
+          "+L": "+L",
+          "+N": "+N",
+          "+S": "+S",
+          "+B": "+B",
+          "+R": "+R",
+          "p": "P",
+          "l": "L",
+          "n": "N",
+          "s": "S",
+          "g": "G",
+          "b": "B",
+          "r": "R",
+          "k": "K",
+          "+p": "+P",
+          "+l": "+L",
+          "+n": "+N",
+          "+s": "+S",
+          "+b": "+B",
+          "+r": "+R",
+          ".": "."
+        }
+      }
+    },
+    "playColourAt": {
+      "params": [
+        "c",
+        "b"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": {
+          "op": "def.call",
+          "def": "playPieceAt",
+          "args": {
+            "b": "@b",
+            "c": "@c"
+          }
+        },
+        "cases": {
+          "P": "black",
+          "L": "black",
+          "N": "black",
+          "S": "black",
+          "G": "black",
+          "B": "black",
+          "R": "black",
+          "K": "black",
+          "+P": "black",
+          "+L": "black",
+          "+N": "black",
+          "+S": "black",
+          "+B": "black",
+          "+R": "black",
+          "p": "white",
+          "l": "white",
+          "n": "white",
+          "s": "white",
+          "g": "white",
+          "b": "white",
+          "r": "white",
+          "k": "white",
+          "+p": "white",
+          "+l": "white",
+          "+n": "white",
+          "+s": "white",
+          "+b": "white",
+          "+r": "white",
+          ".": "none"
+        }
+      }
+    },
+    "playPromotedKind": {
+      "params": [
+        "kind"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@kind",
+        "cases": {
+          "P": "+P",
+          "L": "+L",
+          "N": "+N",
+          "S": "+S",
+          "B": "+B",
+          "R": "+R"
+        },
+        "default": "@kind"
+      }
+    },
+    "playHandKind": {
+      "params": [
+        "kind"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@kind",
+        "cases": {
+          "+P": "P",
+          "+L": "L",
+          "+N": "N",
+          "+S": "S",
+          "+B": "B",
+          "+R": "R"
+        },
+        "default": "@kind"
+      }
+    },
+    "playPromotable": {
+      "params": [
+        "kind"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@kind",
+        "cases": {
+          "P": true,
+          "L": true,
+          "N": true,
+          "S": true,
+          "B": true,
+          "R": true
+        },
+        "default": false
+      }
+    },
+    "playFwd": {
+      "params": [
+        "colour"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@colour",
+        "cases": {
+          "black": "0,-1",
+          "white": "0,1"
+        }
+      }
+    },
+    "playGoldDirs": {
+      "params": [
+        "colour"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@colour",
+        "cases": {
+          "black": {
+            "op": "seq.of",
+            "of": [
+              "0,-1",
+              "-1,-1",
+              "1,-1",
+              "-1,0",
+              "1,0",
+              "0,1"
+            ]
+          },
+          "white": {
+            "op": "seq.of",
+            "of": [
+              "0,1",
+              "-1,1",
+              "1,1",
+              "-1,0",
+              "1,0",
+              "0,-1"
+            ]
+          }
+        }
+      }
+    },
+    "playSilverDirs": {
+      "params": [
+        "colour"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@colour",
+        "cases": {
+          "black": {
+            "op": "seq.of",
+            "of": [
+              "0,-1",
+              "-1,-1",
+              "1,-1",
+              "-1,1",
+              "1,1"
+            ]
+          },
+          "white": {
+            "op": "seq.of",
+            "of": [
+              "0,1",
+              "-1,1",
+              "1,1",
+              "-1,-1",
+              "1,-1"
+            ]
+          }
+        }
+      }
+    },
+    "playKnightDirs": {
+      "params": [
+        "colour"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@colour",
+        "cases": {
+          "black": {
+            "op": "seq.of",
+            "of": [
+              "-1,-2",
+              "1,-2"
+            ]
+          },
+          "white": {
+            "op": "seq.of",
+            "of": [
+              "-1,2",
+              "1,2"
+            ]
+          }
+        }
+      }
+    },
+    "playFwdRoom": {
+      "params": [
+        "sq",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "seq.count",
+        "source": {
+          "op": "grid.ray",
+          "grid": "@b",
+          "from": "@sq",
+          "dir": {
+            "op": "def.call",
+            "def": "playFwd",
+            "args": {
+              "colour": "@colour"
+            }
+          }
+        }
+      }
+    },
+    "playInZone": {
+      "params": [
+        "sq",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "cmp.lte",
+        "left": {
+          "op": "def.call",
+          "def": "playFwdRoom",
+          "args": {
+            "b": "@b",
+            "colour": "@colour",
+            "sq": "@sq"
+          }
+        },
+        "right": 2
+      }
+    },
+    "playStranded": {
+      "params": [
+        "sq",
+        "kind",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "room": {
+            "op": "def.call",
+            "def": "playFwdRoom",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "sq": "@sq"
+            }
+          }
+        },
+        "in": {
+          "op": "branch.match",
+          "value": "@kind",
+          "cases": {
+            "P": {
+              "op": "cmp.lt",
+              "left": "@room",
+              "right": 1
+            },
+            "L": {
+              "op": "cmp.lt",
+              "left": "@room",
+              "right": 1
+            },
+            "N": {
+              "op": "cmp.lt",
+              "left": "@room",
+              "right": 2
+            }
+          },
+          "default": false
+        }
+      }
+    },
+    "playStepTargets": {
+      "params": [
+        "dirs",
+        "f",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "seq.where",
+        "source": {
+          "op": "seq.selectMany",
+          "source": "@dirs",
+          "as": "d",
+          "select": {
+            "op": "grid.ray",
+            "grid": "@b",
+            "from": "@f",
+            "dir": "@d",
+            "length": 1
+          }
+        },
+        "as": "t",
+        "predicate": {
+          "op": "cmp.ne",
+          "left": {
+            "op": "def.call",
+            "def": "playColourAt",
+            "args": {
+              "b": "@b",
+              "c": "@t"
+            }
+          },
+          "right": "@colour"
+        }
+      }
+    },
+    "playSlideTargets": {
+      "params": [
+        "dirs",
+        "f",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "seq.selectMany",
+        "source": "@dirs",
+        "as": "d",
+        "select": {
+          "op": "bind.let",
+          "bind": {
+            "ray": {
+              "op": "grid.ray",
+              "grid": "@b",
+              "from": "@f",
+              "dir": "@d"
+            },
+            "run": {
+              "op": "seq.takeWhile",
+              "source": "@ray",
+              "as": "c",
+              "predicate": {
+                "op": "cmp.isNull",
+                "value": {
+                  "op": "grid.at",
+                  "grid": "@b",
+                  "coord": "@c"
+                }
+              }
+            },
+            "next": {
+              "op": "seq.elementAt",
+              "source": "@ray",
+              "index": {
+                "op": "seq.count",
+                "source": "@run"
+              }
+            }
+          },
+          "in": {
+            "op": "seq.selectMany",
+            "as": "part",
+            "select": "@part",
+            "source": {
+              "op": "seq.of",
+              "of": [
+                "@run",
+                {
+                  "op": "branch.if",
+                  "cond": {
+                    "op": "logic.and",
+                    "all": [
+                      {
+                        "op": "logic.not",
+                        "value": {
+                          "op": "cmp.isNull",
+                          "value": "@next"
+                        }
+                      },
+                      {
+                        "op": "cmp.ne",
+                        "left": {
+                          "op": "def.call",
+                          "def": "playColourAt",
+                          "args": {
+                            "b": "@b",
+                            "c": "@next"
+                          }
+                        },
+                        "right": "@colour"
+                      }
+                    ]
+                  },
+                  "then": {
+                    "op": "seq.of",
+                    "of": [
+                      "@next"
+                    ]
+                  },
+                  "else": {
+                    "op": "seq.empty"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "playTargetsFrom": {
+      "params": [
+        "f",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": {
+          "op": "def.call",
+          "def": "playKindAt",
+          "args": {
+            "b": "@b",
+            "c": "@f"
+          }
+        },
+        "cases": {
+          "P": {
+            "op": "def.call",
+            "def": "playStepTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f",
+              "dirs": {
+                "op": "seq.of",
+                "of": [
+                  {
+                    "op": "def.call",
+                    "def": "playFwd",
+                    "args": {
+                      "colour": "@colour"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "L": {
+            "op": "def.call",
+            "def": "playSlideTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f",
+              "dirs": {
+                "op": "seq.of",
+                "of": [
+                  {
+                    "op": "def.call",
+                    "def": "playFwd",
+                    "args": {
+                      "colour": "@colour"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "N": {
+            "op": "def.call",
+            "def": "playStepTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f",
+              "dirs": {
+                "op": "def.call",
+                "def": "playKnightDirs",
+                "args": {
+                  "colour": "@colour"
+                }
+              }
+            }
+          },
+          "S": {
+            "op": "def.call",
+            "def": "playStepTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f",
+              "dirs": {
+                "op": "def.call",
+                "def": "playSilverDirs",
+                "args": {
+                  "colour": "@colour"
+                }
+              }
+            }
+          },
+          "G": {
+            "op": "def.call",
+            "def": "playGoldTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f"
+            }
+          },
+          "+P": {
+            "op": "def.call",
+            "def": "playGoldTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f"
+            }
+          },
+          "+L": {
+            "op": "def.call",
+            "def": "playGoldTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f"
+            }
+          },
+          "+N": {
+            "op": "def.call",
+            "def": "playGoldTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f"
+            }
+          },
+          "+S": {
+            "op": "def.call",
+            "def": "playGoldTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f"
+            }
+          },
+          "B": {
+            "op": "def.call",
+            "def": "playSlideTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f",
+              "dirs": {
+                "op": "grid.directions",
+                "of": "@b",
+                "kind": "diagonal"
+              }
+            }
+          },
+          "R": {
+            "op": "def.call",
+            "def": "playSlideTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f",
+              "dirs": {
+                "op": "grid.directions",
+                "of": "@b",
+                "kind": "orthogonal"
+              }
+            }
+          },
+          "K": {
+            "op": "def.call",
+            "def": "playStepTargets",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "f": "@f",
+              "dirs": {
+                "op": "grid.directions",
+                "of": "@b",
+                "kind": "eight"
+              }
+            }
+          },
+          "+B": {
+            "op": "seq.selectMany",
+            "as": "part",
+            "select": "@part",
+            "source": {
+              "op": "seq.of",
+              "of": [
+                {
+                  "op": "def.call",
+                  "def": "playSlideTargets",
+                  "args": {
+                    "b": "@b",
+                    "colour": "@colour",
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "@b",
+                      "kind": "diagonal"
+                    }
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "playStepTargets",
+                  "args": {
+                    "b": "@b",
+                    "colour": "@colour",
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "@b",
+                      "kind": "orthogonal"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "+R": {
+            "op": "seq.selectMany",
+            "as": "part",
+            "select": "@part",
+            "source": {
+              "op": "seq.of",
+              "of": [
+                {
+                  "op": "def.call",
+                  "def": "playSlideTargets",
+                  "args": {
+                    "b": "@b",
+                    "colour": "@colour",
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "@b",
+                      "kind": "orthogonal"
+                    }
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "playStepTargets",
+                  "args": {
+                    "b": "@b",
+                    "colour": "@colour",
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "@b",
+                      "kind": "diagonal"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "default": {
+          "op": "seq.empty"
+        }
+      }
+    },
+    "playGoldTargets": {
+      "params": [
+        "f",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "def.call",
+        "def": "playStepTargets",
+        "args": {
+          "b": "@b",
+          "colour": "@colour",
+          "f": "@f",
+          "dirs": {
+            "op": "def.call",
+            "def": "playGoldDirs",
+            "args": {
+              "colour": "@colour"
+            }
+          }
+        }
+      }
+    },
+    "playMovesFrom": {
+      "params": [
+        "f",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "branch.if",
+        "cond": {
+          "op": "cmp.ne",
+          "left": {
+            "op": "def.call",
+            "def": "playColourAt",
+            "args": {
+              "b": "@b",
+              "c": "@f"
+            }
+          },
+          "right": "@colour"
+        },
+        "then": {
+          "op": "seq.empty"
+        },
+        "else": {
+          "op": "bind.let",
+          "bind": {
+            "kind": {
+              "op": "def.call",
+              "def": "playKindAt",
+              "args": {
+                "b": "@b",
+                "c": "@f"
+              }
+            }
+          },
+          "in": {
+            "op": "seq.selectMany",
+            "as": "part",
+            "select": "@part",
+            "source": {
+              "op": "seq.select",
+              "source": {
+                "op": "def.call",
+                "def": "playTargetsFrom",
+                "args": {
+                  "b": "@b",
+                  "colour": "@colour",
+                  "f": "@f"
+                }
+              },
+              "as": "t",
+              "select": {
+                "op": "seq.selectMany",
+                "as": "part",
+                "select": "@part",
+                "source": {
+                  "op": "seq.of",
+                  "of": [
+                    {
+                      "op": "branch.if",
+                      "cond": {
+                        "op": "logic.and",
+                        "all": [
+                          {
+                            "op": "def.call",
+                            "def": "playPromotable",
+                            "args": {
+                              "kind": "@kind"
+                            }
+                          },
+                          {
+                            "op": "logic.or",
+                            "any": [
+                              {
+                                "op": "def.call",
+                                "def": "playInZone",
+                                "args": {
+                                  "b": "@b",
+                                  "colour": "@colour",
+                                  "sq": "@f"
+                                }
+                              },
+                              {
+                                "op": "def.call",
+                                "def": "playInZone",
+                                "args": {
+                                  "b": "@b",
+                                  "colour": "@colour",
+                                  "sq": "@t"
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      "then": {
+                        "op": "seq.of",
+                        "of": [
+                          {
+                            "op": "tuple.of",
+                            "of": [
+                              "@f",
+                              "@t",
+                              "+"
+                            ]
+                          }
+                        ]
+                      },
+                      "else": {
+                        "op": "seq.empty"
+                      }
+                    },
+                    {
+                      "op": "branch.if",
+                      "cond": {
+                        "op": "def.call",
+                        "def": "playStranded",
+                        "args": {
+                          "b": "@b",
+                          "colour": "@colour",
+                          "kind": "@kind",
+                          "sq": "@t"
+                        }
+                      },
+                      "then": {
+                        "op": "seq.empty"
+                      },
+                      "else": {
+                        "op": "seq.of",
+                        "of": [
+                          {
+                            "op": "tuple.of",
+                            "of": [
+                              "@f",
+                              "@t",
+                              "-"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "playMovesFor": {
+      "params": [
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "seq.selectMany",
+        "source": {
+          "op": "grid.coords",
+          "of": "@b"
+        },
+        "as": "f",
+        "select": {
+          "op": "def.call",
+          "def": "playMovesFrom",
+          "args": {
+            "b": "@b",
+            "colour": "@colour",
+            "f": "@f"
+          }
+        }
+      }
+    },
+    "playKingSquare": {
+      "params": [
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "seq.elementAt",
+        "index": 0,
+        "source": {
+          "op": "seq.where",
+          "source": {
+            "op": "grid.coords",
+            "of": "@b"
+          },
+          "as": "c",
+          "predicate": {
+            "op": "cmp.eq",
+            "left": {
+              "op": "grid.at",
+              "grid": "@b",
+              "coord": "@c"
+            },
+            "right": {
+              "op": "def.call",
+              "def": "playCode",
+              "args": {
+                "colour": "@colour",
+                "kind": "K"
+              }
+            }
+          }
+        }
+      }
+    },
+    "playAttacked": {
+      "params": [
+        "by",
+        "sq",
+        "b"
+      ],
+      "body": {
+        "op": "seq.any",
+        "source": {
+          "op": "grid.coords",
+          "of": "@b"
+        },
+        "as": "f",
+        "predicate": {
+          "op": "logic.and",
+          "all": [
+            {
+              "op": "cmp.eq",
+              "left": {
+                "op": "def.call",
+                "def": "playColourAt",
+                "args": {
+                  "b": "@b",
+                  "c": "@f"
+                }
+              },
+              "right": "@by"
+            },
+            {
+              "op": "seq.any",
+              "source": {
+                "op": "def.call",
+                "def": "playTargetsFrom",
+                "args": {
+                  "b": "@b",
+                  "colour": "@by",
+                  "f": "@f"
+                }
+              },
+              "as": "t",
+              "predicate": {
+                "op": "cmp.eq",
+                "left": "@t",
+                "right": "@sq"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "playBoardAfterMove": {
+      "params": [
+        "m",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "f": {
+            "op": "tuple.at",
+            "tuple": "@m",
+            "index": 0
+          },
+          "t": {
+            "op": "tuple.at",
+            "tuple": "@m",
+            "index": 1
+          },
+          "kind": {
+            "op": "def.call",
+            "def": "playKindAt",
+            "args": {
+              "b": "@b",
+              "c": {
+                "op": "tuple.at",
+                "tuple": "@m",
+                "index": 0
+              }
+            }
+          },
+          "placed": {
+            "op": "branch.if",
+            "cond": {
+              "op": "cmp.eq",
+              "left": {
+                "op": "tuple.at",
+                "tuple": "@m",
+                "index": 2
+              },
+              "right": "+"
+            },
+            "then": {
+              "op": "def.call",
+              "def": "playPromotedKind",
+              "args": {
+                "kind": "@kind"
+              }
+            },
+            "else": "@kind"
+          }
+        },
+        "in": {
+          "op": "grid.with",
+          "grid": {
+            "op": "grid.with",
+            "grid": "@b",
+            "coord": "@f",
+            "value": null
+          },
+          "coord": "@t",
+          "value": {
+            "op": "def.call",
+            "def": "playCode",
+            "args": {
+              "colour": "@colour",
+              "kind": "@placed"
+            }
+          }
+        }
+      }
+    },
+    "playSafeAfterMove": {
+      "params": [
+        "m",
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "after": {
+            "op": "def.call",
+            "def": "playBoardAfterMove",
+            "args": {
+              "b": "@b",
+              "colour": "@colour",
+              "m": "@m"
+            }
+          }
+        },
+        "in": {
+          "op": "logic.not",
+          "value": {
+            "op": "def.call",
+            "def": "playAttacked",
+            "args": {
+              "b": "@after",
+              "sq": {
+                "op": "def.call",
+                "def": "playKingSquare",
+                "args": {
+                  "b": "@after",
+                  "colour": "@colour"
+                }
+              },
+              "by": {
+                "op": "def.call",
+                "def": "playOther",
+                "args": {
+                  "colour": "@colour"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "playHasBoardMove": {
+      "params": [
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "seq.any",
+        "source": {
+          "op": "def.call",
+          "def": "playMovesFor",
+          "args": {
+            "b": "@b",
+            "colour": "@colour"
+          }
+        },
+        "as": "m",
+        "predicate": {
+          "op": "def.call",
+          "def": "playSafeAfterMove",
+          "args": {
+            "b": "@b",
+            "colour": "@colour",
+            "m": "@m"
+          }
+        }
+      }
+    },
+    "playMyHand": {
+      "op": "rec.at",
+      "record": "$hand",
+      "key": "#playMe"
+    },
+    "playHeld": {
+      "params": [
+        "kind",
+        "colour"
+      ],
+      "body": {
+        "op": "rec.at",
+        "record": {
+          "op": "rec.at",
+          "record": "$hand",
+          "key": "@colour"
+        },
+        "key": "@kind"
+      }
+    },
+    "playHandKinds": {
+      "op": "seq.where",
+      "source": {
+        "op": "rec.keys",
+        "of": "#playMyHand"
+      },
+      "as": "k",
+      "predicate": {
+        "op": "cmp.gt",
+        "left": {
+          "op": "rec.at",
+          "record": "#playMyHand",
+          "key": "@k"
+        },
+        "right": 0
+      }
+    },
+    "playEmptySquares": {
+      "op": "seq.where",
+      "source": {
+        "op": "grid.coords",
+        "of": "$board"
+      },
+      "as": "c",
+      "predicate": {
+        "op": "cmp.isNull",
+        "value": {
+          "op": "grid.at",
+          "grid": "$board",
+          "coord": "@c"
+        }
+      }
+    },
+    "playCaptured": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "def.call",
+        "def": "playHandKind",
+        "args": {
+          "kind": {
+            "op": "def.call",
+            "def": "playKindAt",
+            "args": {
+              "b": "$board",
+              "c": {
+                "op": "tuple.at",
+                "tuple": "@m",
+                "index": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "playBoardAfterDrop": {
+      "params": [
+        "to",
+        "piece"
+      ],
+      "body": {
+        "op": "grid.with",
+        "grid": "$board",
+        "coord": "@to",
+        "value": {
+          "op": "def.call",
+          "def": "playCode",
+          "args": {
+            "colour": "#playMe",
+            "kind": "@piece"
+          }
+        }
+      }
+    },
+    "playDoubledPawn": {
+      "params": [
+        "to"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "pawn": {
+            "op": "def.call",
+            "def": "playCode",
+            "args": {
+              "colour": "#playMe",
+              "kind": "P"
+            }
+          }
+        },
+        "in": {
+          "op": "seq.any",
+          "as": "c",
+          "source": {
+            "op": "seq.selectMany",
+            "as": "part",
+            "select": "@part",
+            "source": {
+              "op": "seq.of",
+              "of": [
+                {
+                  "op": "grid.ray",
+                  "grid": "$board",
+                  "from": "@to",
+                  "dir": "0,-1"
+                },
+                {
+                  "op": "grid.ray",
+                  "grid": "$board",
+                  "from": "@to",
+                  "dir": "0,1"
+                }
+              ]
+            }
+          },
+          "predicate": {
+            "op": "cmp.eq",
+            "left": {
+              "op": "grid.at",
+              "grid": "$board",
+              "coord": "@c"
+            },
+            "right": "@pawn"
+          }
+        }
+      }
+    },
+    "playDropMate": {
+      "params": [
+        "to"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "after": {
+            "op": "def.call",
+            "def": "playBoardAfterDrop",
+            "args": {
+              "piece": "P",
+              "to": "@to"
+            }
+          }
+        },
+        "in": {
+          "op": "logic.and",
+          "all": [
+            {
+              "op": "def.call",
+              "def": "playAttacked",
+              "args": {
+                "b": "@after",
+                "sq": {
+                  "op": "def.call",
+                  "def": "playKingSquare",
+                  "args": {
+                    "b": "@after",
+                    "colour": "#playFoe"
+                  }
+                },
+                "by": "#playMe"
+              }
+            },
+            {
+              "op": "logic.not",
+              "value": {
+                "op": "def.call",
+                "def": "playHasBoardMove",
+                "args": {
+                  "b": "@after",
+                  "colour": "#playFoe"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "playDropLegal": {
+      "params": [
+        "to",
+        "piece"
+      ],
+      "body": {
+        "op": "logic.and",
+        "all": [
+          {
+            "op": "logic.not",
+            "value": {
+              "op": "def.call",
+              "def": "playStranded",
+              "args": {
+                "b": "$board",
+                "colour": "#playMe",
+                "kind": "@piece",
+                "sq": "@to"
+              }
+            }
+          },
+          {
+            "op": "logic.or",
+            "any": [
+              {
+                "op": "cmp.ne",
+                "left": "@piece",
+                "right": "P"
+              },
+              {
+                "op": "logic.not",
+                "value": {
+                  "op": "def.call",
+                  "def": "playDoubledPawn",
+                  "args": {
+                    "to": "@to"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "op": "bind.let",
+            "bind": {
+              "after": {
+                "op": "def.call",
+                "def": "playBoardAfterDrop",
+                "args": {
+                  "piece": "@piece",
+                  "to": "@to"
+                }
+              }
+            },
+            "in": {
+              "op": "logic.not",
+              "value": {
+                "op": "def.call",
+                "def": "playAttacked",
+                "args": {
+                  "b": "@after",
+                  "sq": {
+                    "op": "def.call",
+                    "def": "playKingSquare",
+                    "args": {
+                      "b": "@after",
+                      "colour": "#playMe"
+                    }
+                  },
+                  "by": "#playFoe"
+                }
+              }
+            }
+          },
+          {
+            "op": "logic.or",
+            "any": [
+              {
+                "op": "cmp.ne",
+                "left": "@piece",
+                "right": "P"
+              },
+              {
+                "op": "logic.not",
+                "value": {
+                  "op": "def.call",
+                  "def": "playDropMate",
+                  "args": {
+                    "to": "@to"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "playMyMoves": {
+      "op": "def.call",
+      "def": "playMovesFor",
+      "args": {
+        "b": "$board",
+        "colour": "#playMe"
+      }
+    },
+    "playHasAnyPlay": {
+      "op": "logic.or",
+      "any": [
+        {
+          "op": "def.call",
+          "def": "playHasBoardMove",
+          "args": {
+            "b": "$board",
+            "colour": "#playMe"
+          }
+        },
+        {
+          "op": "seq.any",
+          "source": "#playHandKinds",
+          "as": "k",
+          "predicate": {
+            "op": "seq.any",
+            "source": "#playEmptySquares",
+            "as": "sq",
+            "predicate": {
+              "op": "def.call",
+              "def": "playDropLegal",
+              "args": {
+                "piece": "@k",
+                "to": "@sq"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "inputs": {
+    "move": {
+      "actor": "#playMe",
+      "params": {
+        "m": {
+          "domain": "#playMyMoves"
+        }
+      },
+      "when": {
+        "op": "def.call",
+        "def": "playSafeAfterMove",
+        "args": {
+          "b": "$board",
+          "colour": "#playMe",
+          "m": "@m"
+        }
+      },
+      "effects": [
+        {
+          "op": "state.set",
+          "path": "board",
+          "value": {
+            "op": "def.call",
+            "def": "playBoardAfterMove",
+            "args": {
+              "b": "$board",
+              "colour": "#playMe",
+              "m": "@m"
+            }
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "turn",
+          "value": "#playFoe"
+        },
+        {
+          "op": "rec.update",
+          "target": "$hand",
+          "key": "#playMe",
+          "as": "h",
+          "value": {
+            "op": "bind.let",
+            "bind": {
+              "k": {
+                "op": "def.call",
+                "def": "playCaptured",
+                "args": {
+                  "m": "@m"
+                }
+              }
+            },
+            "in": {
+              "op": "branch.if",
+              "cond": {
+                "op": "rec.has",
+                "record": "@h",
+                "key": "@k"
+              },
+              "then": {
+                "op": "rec.with",
+                "record": "@h",
+                "key": "@k",
+                "value": {
+                  "op": "math.add",
+                  "of": [
+                    {
+                      "op": "rec.at",
+                      "record": "@h",
+                      "key": "@k"
+                    },
+                    1
+                  ]
+                }
+              },
+              "else": "@h"
+            }
+          }
+        }
+      ]
+    },
+    "drop": {
+      "actor": "#playMe",
+      "params": {
+        "piece": {
+          "domain": "#playHandKinds"
+        },
+        "to": {
+          "domain": "#playEmptySquares"
+        }
+      },
+      "when": {
+        "op": "def.call",
+        "def": "playDropLegal",
+        "args": {
+          "piece": "@piece",
+          "to": "@to"
+        }
+      },
+      "effects": [
+        {
+          "op": "state.set",
+          "path": "board",
+          "value": {
+            "op": "def.call",
+            "def": "playBoardAfterDrop",
+            "args": {
+              "piece": "@piece",
+              "to": "@to"
+            }
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "turn",
+          "value": "#playFoe"
+        },
+        {
+          "op": "rec.update",
+          "target": "$hand",
+          "key": "#playMe",
+          "as": "h",
+          "value": {
+            "op": "rec.with",
+            "record": "@h",
+            "key": "@piece",
+            "value": {
+              "op": "math.sub",
+              "left": {
+                "op": "rec.at",
+                "record": "@h",
+                "key": "@piece"
+              },
+              "right": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  "terminal": {
+    "when": {
+      "op": "logic.not",
+      "value": "#playHasAnyPlay"
+    },
+    "result": "#playFoe"
+  }
+}

@@ -1,0 +1,2158 @@
+{
+  "$schema": "rulealize/ruleset/v1",
+  "id": "chess",
+  "version": "1.1.0",
+
+  // chess with every definition renamed and every definition of more than one parameter
+  // taking its parameters the other way round, and nothing else touched — fifty-five
+  // definitions, nine of them reordered; every reference moved with them, and every
+  // `def.call` writes its arguments in the new order.
+  //
+  // A big rule set is here rather than only a small one because the claim being measured is
+  // that a person's choices do not point at a rule set's structure, and a document with one
+  // definition in it cannot tell that apart from there being nothing to point at.
+
+  "requires": [
+    {
+      "plugin": "Rulealize.Plugin.Binding",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Branch",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Definition",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Logic",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Comparison",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Arithmetic",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.TypeSchema",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Sequence",
+      "version": "^1.1"
+    },
+    {
+      "plugin": "Rulealize.Plugin.State",
+      "version": "^1.0"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Grid",
+      "version": "^1.1"
+    },
+    {
+      "plugin": "Rulealize.Plugin.Tuple",
+      "version": "^1.0"
+    }
+  ],
+  "state": {
+    "schema": {
+      "board": {
+        "op": "grid.board",
+        "width": 8,
+        "height": 8,
+        "coord": "algebraic",
+        "cell": {
+          "op": "type.enum",
+          "values": [
+            "P",
+            "N",
+            "B",
+            "R",
+            "Q",
+            "K",
+            "p",
+            "n",
+            "b",
+            "r",
+            "q",
+            "k"
+          ],
+          "nullable": true
+        }
+      },
+      "turn": {
+        "op": "type.enum",
+        "values": [
+          "white",
+          "black"
+        ]
+      },
+      "wk": {
+        "op": "type.bool"
+      },
+      "wq": {
+        "op": "type.bool"
+      },
+      "bk": {
+        "op": "type.bool"
+      },
+      "bq": {
+        "op": "type.bool"
+      },
+      "ep": {
+        "op": "grid.square",
+        "width": 8,
+        "height": 8,
+        "coord": "algebraic",
+        "nullable": true
+      },
+      "idle": {
+        "op": "type.int",
+        "min": 0
+      }
+    },
+    "initial": {
+      "board": {
+        "a8": "r",
+        "b8": "n",
+        "c8": "b",
+        "d8": "q",
+        "e8": "k",
+        "f8": "b",
+        "g8": "n",
+        "h8": "r",
+        "a7": "p",
+        "b7": "p",
+        "c7": "p",
+        "d7": "p",
+        "e7": "p",
+        "f7": "p",
+        "g7": "p",
+        "h7": "p",
+        "a2": "P",
+        "b2": "P",
+        "c2": "P",
+        "d2": "P",
+        "e2": "P",
+        "f2": "P",
+        "g2": "P",
+        "h2": "P",
+        "a1": "R",
+        "b1": "N",
+        "c1": "B",
+        "d1": "Q",
+        "e1": "K",
+        "f1": "B",
+        "g1": "N",
+        "h1": "R"
+      },
+      "turn": "white",
+      "wk": true,
+      "wq": true,
+      "bk": true,
+      "bq": true,
+      "ep": null,
+      "idle": 0
+    }
+  },
+  "definitions": {
+    "gameMe": "$turn",
+    "gameFoe": {
+      "op": "branch.match",
+      "value": "$turn",
+      "cases": {
+        "white": "black",
+        "black": "white"
+      }
+    },
+    "gameCode": {
+      "params": [
+        "kind",
+        "colour"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@colour",
+        "cases": {
+          "white": {
+            "op": "branch.match",
+            "value": "@kind",
+            "cases": {
+              "pawn": "P",
+              "knight": "N",
+              "bishop": "B",
+              "rook": "R",
+              "queen": "Q",
+              "king": "K"
+            }
+          },
+          "black": {
+            "op": "branch.match",
+            "value": "@kind",
+            "cases": {
+              "pawn": "p",
+              "knight": "n",
+              "bishop": "b",
+              "rook": "r",
+              "queen": "q",
+              "king": "k"
+            }
+          }
+        }
+      }
+    },
+    "gameMyPawn": {
+      "op": "def.call",
+      "def": "gameCode",
+      "args": {
+        "colour": "#gameMe",
+        "kind": "pawn"
+      }
+    },
+    "gameMyKnight": {
+      "op": "def.call",
+      "def": "gameCode",
+      "args": {
+        "colour": "#gameMe",
+        "kind": "knight"
+      }
+    },
+    "gameMyBishop": {
+      "op": "def.call",
+      "def": "gameCode",
+      "args": {
+        "colour": "#gameMe",
+        "kind": "bishop"
+      }
+    },
+    "gameMyRook": {
+      "op": "def.call",
+      "def": "gameCode",
+      "args": {
+        "colour": "#gameMe",
+        "kind": "rook"
+      }
+    },
+    "gameMyQueen": {
+      "op": "def.call",
+      "def": "gameCode",
+      "args": {
+        "colour": "#gameMe",
+        "kind": "queen"
+      }
+    },
+    "gameMyKing": {
+      "op": "def.call",
+      "def": "gameCode",
+      "args": {
+        "colour": "#gameMe",
+        "kind": "king"
+      }
+    },
+    "gamePieceAt": {
+      "params": [
+        "c"
+      ],
+      "body": {
+        "op": "cmp.coalesce",
+        "of": [
+          {
+            "op": "grid.at",
+            "grid": "$board",
+            "coord": "@c"
+          },
+          "."
+        ]
+      }
+    },
+    "gameColourAt": {
+      "params": [
+        "c"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": {
+          "op": "def.call",
+          "def": "gamePieceAt",
+          "args": {
+            "c": "@c"
+          }
+        },
+        "cases": {
+          "P": "white",
+          "N": "white",
+          "B": "white",
+          "R": "white",
+          "Q": "white",
+          "K": "white",
+          "p": "black",
+          "n": "black",
+          "b": "black",
+          "r": "black",
+          "q": "black",
+          "k": "black",
+          ".": "none"
+        }
+      }
+    },
+    "gameKindAt": {
+      "params": [
+        "c"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": {
+          "op": "def.call",
+          "def": "gamePieceAt",
+          "args": {
+            "c": "@c"
+          }
+        },
+        "cases": {
+          "P": "pawn",
+          "p": "pawn",
+          "N": "knight",
+          "n": "knight",
+          "B": "bishop",
+          "b": "bishop",
+          "R": "rook",
+          "r": "rook",
+          "Q": "queen",
+          "q": "queen",
+          "K": "king",
+          "k": "king",
+          ".": "none"
+        }
+      }
+    },
+    "gameIsMine": {
+      "params": [
+        "c"
+      ],
+      "body": {
+        "op": "cmp.eq",
+        "left": {
+          "op": "def.call",
+          "def": "gameColourAt",
+          "args": {
+            "c": "@c"
+          }
+        },
+        "right": "#gameMe"
+      }
+    },
+    "gameIsFoe": {
+      "params": [
+        "c"
+      ],
+      "body": {
+        "op": "cmp.eq",
+        "left": {
+          "op": "def.call",
+          "def": "gameColourAt",
+          "args": {
+            "c": "@c"
+          }
+        },
+        "right": "#gameFoe"
+      }
+    },
+    "gameIsEmpty": {
+      "params": [
+        "c"
+      ],
+      "body": {
+        "op": "logic.and",
+        "all": [
+          {
+            "op": "logic.not",
+            "value": {
+              "op": "cmp.isNull",
+              "value": "@c"
+            }
+          },
+          {
+            "op": "cmp.isNull",
+            "value": {
+              "op": "grid.at",
+              "grid": "$board",
+              "coord": "@c"
+            }
+          }
+        ]
+      }
+    },
+    "gameFwd": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "0,-1",
+        "black": "0,1"
+      }
+    },
+    "gameHomeDir": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "0,1",
+        "black": "0,-1"
+      }
+    },
+    "gameCapDirs": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": {
+          "op": "seq.of",
+          "of": [
+            "-1,-1",
+            "1,-1"
+          ]
+        },
+        "black": {
+          "op": "seq.of",
+          "of": [
+            "-1,1",
+            "1,1"
+          ]
+        }
+      }
+    },
+    "gameEpFromDirs": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": {
+          "op": "seq.of",
+          "of": [
+            "-1,1",
+            "1,1"
+          ]
+        },
+        "black": {
+          "op": "seq.of",
+          "of": [
+            "-1,-1",
+            "1,-1"
+          ]
+        }
+      }
+    },
+    "gameKnightDirs": {
+      "op": "seq.of",
+      "of": [
+        "1,2",
+        "2,1",
+        "2,-1",
+        "1,-2",
+        "-1,-2",
+        "-2,-1",
+        "-2,1",
+        "-1,2"
+      ]
+    },
+    "gameAttacked": {
+      "params": [
+        "by",
+        "sq",
+        "b"
+      ],
+      "body": {
+        "op": "logic.or",
+        "any": [
+          {
+            "op": "seq.any",
+            "source": {
+              "op": "seq.selectMany",
+              "source": "#gameKnightDirs",
+              "as": "d",
+              "select": {
+                "op": "grid.ray",
+                "grid": "@b",
+                "from": "@sq",
+                "dir": "@d",
+                "length": 1
+              }
+            },
+            "as": "c",
+            "predicate": {
+              "op": "cmp.eq",
+              "left": {
+                "op": "grid.at",
+                "grid": "@b",
+                "coord": "@c"
+              },
+              "right": {
+                "op": "def.call",
+                "def": "gameCode",
+                "args": {
+                  "colour": "@by",
+                  "kind": "knight"
+                }
+              }
+            }
+          },
+          {
+            "op": "seq.any",
+            "source": {
+              "op": "seq.selectMany",
+              "source": {
+                "op": "grid.directions",
+                "of": "@b",
+                "kind": "eight"
+              },
+              "as": "d",
+              "select": {
+                "op": "grid.ray",
+                "grid": "@b",
+                "from": "@sq",
+                "dir": "@d",
+                "length": 1
+              }
+            },
+            "as": "c",
+            "predicate": {
+              "op": "cmp.eq",
+              "left": {
+                "op": "grid.at",
+                "grid": "@b",
+                "coord": "@c"
+              },
+              "right": {
+                "op": "def.call",
+                "def": "gameCode",
+                "args": {
+                  "colour": "@by",
+                  "kind": "king"
+                }
+              }
+            }
+          },
+          {
+            "op": "seq.any",
+            "source": {
+              "op": "seq.selectMany",
+              "source": {
+                "op": "branch.match",
+                "value": "@by",
+                "cases": {
+                  "white": {
+                    "op": "seq.of",
+                    "of": [
+                      "-1,1",
+                      "1,1"
+                    ]
+                  },
+                  "black": {
+                    "op": "seq.of",
+                    "of": [
+                      "-1,-1",
+                      "1,-1"
+                    ]
+                  }
+                }
+              },
+              "as": "d",
+              "select": {
+                "op": "grid.ray",
+                "grid": "@b",
+                "from": "@sq",
+                "dir": "@d",
+                "length": 1
+              }
+            },
+            "as": "c",
+            "predicate": {
+              "op": "cmp.eq",
+              "left": {
+                "op": "grid.at",
+                "grid": "@b",
+                "coord": "@c"
+              },
+              "right": {
+                "op": "def.call",
+                "def": "gameCode",
+                "args": {
+                  "colour": "@by",
+                  "kind": "pawn"
+                }
+              }
+            }
+          },
+          {
+            "op": "seq.any",
+            "source": {
+              "op": "grid.directions",
+              "of": "@b",
+              "kind": "orthogonal"
+            },
+            "as": "d",
+            "predicate": {
+              "op": "def.call",
+              "def": "gameSliderFound",
+              "args": {
+                "b": "@b",
+                "sq": "@sq",
+                "dir": "@d",
+                "by": "@by",
+                "kind": "rook"
+              }
+            }
+          },
+          {
+            "op": "seq.any",
+            "source": {
+              "op": "grid.directions",
+              "of": "@b",
+              "kind": "diagonal"
+            },
+            "as": "d",
+            "predicate": {
+              "op": "def.call",
+              "def": "gameSliderFound",
+              "args": {
+                "b": "@b",
+                "sq": "@sq",
+                "dir": "@d",
+                "by": "@by",
+                "kind": "bishop"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "gameSliderFound": {
+      "params": [
+        "kind",
+        "by",
+        "dir",
+        "sq",
+        "b"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "ray": {
+            "op": "grid.ray",
+            "grid": "@b",
+            "from": "@sq",
+            "dir": "@dir"
+          },
+          "blocker": {
+            "op": "seq.elementAt",
+            "source": "@ray",
+            "index": {
+              "op": "seq.count",
+              "source": {
+                "op": "seq.takeWhile",
+                "source": "@ray",
+                "as": "c",
+                "predicate": {
+                  "op": "cmp.isNull",
+                  "value": {
+                    "op": "grid.at",
+                    "grid": "@b",
+                    "coord": "@c"
+                  }
+                }
+              }
+            }
+          },
+          "piece": {
+            "op": "grid.at",
+            "grid": "@b",
+            "coord": "@blocker"
+          }
+        },
+        "in": {
+          "op": "logic.or",
+          "any": [
+            {
+              "op": "cmp.eq",
+              "left": "@piece",
+              "right": {
+                "op": "def.call",
+                "def": "gameCode",
+                "args": {
+                  "colour": "@by",
+                  "kind": "@kind"
+                }
+              }
+            },
+            {
+              "op": "cmp.eq",
+              "left": "@piece",
+              "right": {
+                "op": "def.call",
+                "def": "gameCode",
+                "args": {
+                  "colour": "@by",
+                  "kind": "queen"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "gameKingSquare": {
+      "params": [
+        "colour",
+        "b"
+      ],
+      "body": {
+        "op": "seq.elementAt",
+        "index": 0,
+        "source": {
+          "op": "seq.where",
+          "source": {
+            "op": "grid.coords",
+            "of": "@b"
+          },
+          "as": "c",
+          "predicate": {
+            "op": "cmp.eq",
+            "left": {
+              "op": "grid.at",
+              "grid": "@b",
+              "coord": "@c"
+            },
+            "right": {
+              "op": "def.call",
+              "def": "gameCode",
+              "args": {
+                "colour": "@colour",
+                "kind": "king"
+              }
+            }
+          }
+        }
+      }
+    },
+    "gameInCheck": {
+      "params": [
+        "colour"
+      ],
+      "body": {
+        "op": "def.call",
+        "def": "gameAttacked",
+        "args": {
+          "b": "$board",
+          "sq": {
+            "op": "def.call",
+            "def": "gameKingSquare",
+            "args": {
+              "b": "$board",
+              "colour": "@colour"
+            }
+          },
+          "by": {
+            "op": "branch.match",
+            "value": "@colour",
+            "cases": {
+              "white": "black",
+              "black": "white"
+            }
+          }
+        }
+      }
+    },
+    "gameSafe": {
+      "params": [
+        "sq"
+      ],
+      "body": {
+        "op": "logic.not",
+        "value": {
+          "op": "def.call",
+          "def": "gameAttacked",
+          "args": {
+            "b": "$board",
+            "sq": "@sq",
+            "by": "#gameFoe"
+          }
+        }
+      }
+    },
+    "gameSlide": {
+      "params": [
+        "dirs",
+        "f"
+      ],
+      "body": {
+        "op": "seq.selectMany",
+        "source": "@dirs",
+        "as": "d",
+        "select": {
+          "op": "bind.let",
+          "bind": {
+            "ray": {
+              "op": "grid.ray",
+              "grid": "$board",
+              "from": "@f",
+              "dir": "@d"
+            },
+            "run": {
+              "op": "seq.takeWhile",
+              "source": "@ray",
+              "as": "c",
+              "predicate": {
+                "op": "cmp.isNull",
+                "value": {
+                  "op": "grid.at",
+                  "grid": "$board",
+                  "coord": "@c"
+                }
+              }
+            },
+            "next": {
+              "op": "seq.elementAt",
+              "source": "@ray",
+              "index": {
+                "op": "seq.count",
+                "source": "@run"
+              }
+            }
+          },
+          "in": {
+            "op": "seq.selectMany",
+            "source": {
+              "op": "seq.of",
+              "of": [
+                "@run",
+                {
+                  "op": "branch.if",
+                  "cond": {
+                    "op": "def.call",
+                    "def": "gameIsFoe",
+                    "args": {
+                      "c": "@next"
+                    }
+                  },
+                  "then": {
+                    "op": "seq.of",
+                    "of": [
+                      "@next"
+                    ]
+                  },
+                  "else": {
+                    "op": "seq.empty"
+                  }
+                }
+              ]
+            },
+            "as": "part",
+            "select": "@part"
+          }
+        }
+      }
+    },
+    "gameStep": {
+      "params": [
+        "dirs",
+        "f"
+      ],
+      "body": {
+        "op": "seq.where",
+        "source": {
+          "op": "seq.selectMany",
+          "source": "@dirs",
+          "as": "d",
+          "select": {
+            "op": "grid.ray",
+            "grid": "$board",
+            "from": "@f",
+            "dir": "@d",
+            "length": 1
+          }
+        },
+        "as": "c",
+        "predicate": {
+          "op": "logic.not",
+          "value": {
+            "op": "def.call",
+            "def": "gameIsMine",
+            "args": {
+              "c": "@c"
+            }
+          }
+        }
+      }
+    },
+    "gamePlain": {
+      "params": [
+        "targets",
+        "f"
+      ],
+      "body": {
+        "op": "seq.select",
+        "source": "@targets",
+        "as": "t",
+        "select": {
+          "op": "tuple.of",
+          "of": [
+            "@f",
+            "@t",
+            "-"
+          ]
+        }
+      }
+    },
+    "gameAtHome": {
+      "params": [
+        "f"
+      ],
+      "body": {
+        "op": "cmp.eq",
+        "left": {
+          "op": "seq.count",
+          "source": {
+            "op": "grid.ray",
+            "grid": "$board",
+            "from": "@f",
+            "dir": "#gameHomeDir"
+          }
+        },
+        "right": 1
+      }
+    },
+    "gamePawnStep": {
+      "params": [
+        "t",
+        "f"
+      ],
+      "body": {
+        "op": "branch.if",
+        "cond": {
+          "op": "logic.not",
+          "value": {
+            "op": "seq.any",
+            "source": {
+              "op": "grid.ray",
+              "grid": "$board",
+              "from": "@t",
+              "dir": "#gameFwd",
+              "length": 1
+            }
+          }
+        },
+        "then": {
+          "op": "seq.of",
+          "of": [
+            {
+              "op": "tuple.of",
+              "of": [
+                "@f",
+                "@t",
+                "q"
+              ]
+            },
+            {
+              "op": "tuple.of",
+              "of": [
+                "@f",
+                "@t",
+                "r"
+              ]
+            },
+            {
+              "op": "tuple.of",
+              "of": [
+                "@f",
+                "@t",
+                "b"
+              ]
+            },
+            {
+              "op": "tuple.of",
+              "of": [
+                "@f",
+                "@t",
+                "n"
+              ]
+            }
+          ]
+        },
+        "else": {
+          "op": "seq.of",
+          "of": [
+            {
+              "op": "tuple.of",
+              "of": [
+                "@f",
+                "@t",
+                "-"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "gamePawnMoves": {
+      "params": [
+        "f"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "one": {
+            "op": "seq.elementAt",
+            "index": 0,
+            "source": {
+              "op": "grid.ray",
+              "grid": "$board",
+              "from": "@f",
+              "dir": "#gameFwd",
+              "length": 1
+            }
+          },
+          "two": {
+            "op": "seq.elementAt",
+            "index": 1,
+            "source": {
+              "op": "grid.ray",
+              "grid": "$board",
+              "from": "@f",
+              "dir": "#gameFwd",
+              "length": 2
+            }
+          }
+        },
+        "in": {
+          "op": "seq.selectMany",
+          "source": {
+            "op": "seq.of",
+            "of": [
+              {
+                "op": "branch.if",
+                "cond": {
+                  "op": "def.call",
+                  "def": "gameIsEmpty",
+                  "args": {
+                    "c": "@one"
+                  }
+                },
+                "then": {
+                  "op": "def.call",
+                  "def": "gamePawnStep",
+                  "args": {
+                    "f": "@f",
+                    "t": "@one"
+                  }
+                },
+                "else": {
+                  "op": "seq.empty"
+                }
+              },
+              {
+                "op": "branch.if",
+                "cond": {
+                  "op": "logic.and",
+                  "all": [
+                    {
+                      "op": "def.call",
+                      "def": "gameAtHome",
+                      "args": {
+                        "f": "@f"
+                      }
+                    },
+                    {
+                      "op": "def.call",
+                      "def": "gameIsEmpty",
+                      "args": {
+                        "c": "@one"
+                      }
+                    },
+                    {
+                      "op": "def.call",
+                      "def": "gameIsEmpty",
+                      "args": {
+                        "c": "@two"
+                      }
+                    }
+                  ]
+                },
+                "then": {
+                  "op": "seq.of",
+                  "of": [
+                    {
+                      "op": "tuple.of",
+                      "of": [
+                        "@f",
+                        "@two",
+                        "2"
+                      ]
+                    }
+                  ]
+                },
+                "else": {
+                  "op": "seq.empty"
+                }
+              },
+              {
+                "op": "seq.selectMany",
+                "source": {
+                  "op": "seq.where",
+                  "source": {
+                    "op": "seq.selectMany",
+                    "source": "#gameCapDirs",
+                    "as": "d",
+                    "select": {
+                      "op": "grid.ray",
+                      "grid": "$board",
+                      "from": "@f",
+                      "dir": "@d",
+                      "length": 1
+                    }
+                  },
+                  "as": "c",
+                  "predicate": {
+                    "op": "def.call",
+                    "def": "gameIsFoe",
+                    "args": {
+                      "c": "@c"
+                    }
+                  }
+                },
+                "as": "t",
+                "select": {
+                  "op": "def.call",
+                  "def": "gamePawnStep",
+                  "args": {
+                    "f": "@f",
+                    "t": "@t"
+                  }
+                }
+              }
+            ]
+          },
+          "as": "part",
+          "select": "@part"
+        }
+      }
+    },
+    "gameMovesFrom": {
+      "params": [
+        "f"
+      ],
+      "body": {
+        "op": "branch.if",
+        "cond": {
+          "op": "logic.not",
+          "value": {
+            "op": "def.call",
+            "def": "gameIsMine",
+            "args": {
+              "c": "@f"
+            }
+          }
+        },
+        "then": {
+          "op": "seq.empty"
+        },
+        "else": {
+          "op": "branch.match",
+          "value": {
+            "op": "def.call",
+            "def": "gameKindAt",
+            "args": {
+              "c": "@f"
+            }
+          },
+          "cases": {
+            "pawn": {
+              "op": "def.call",
+              "def": "gamePawnMoves",
+              "args": {
+                "f": "@f"
+              }
+            },
+            "knight": {
+              "op": "def.call",
+              "def": "gamePlain",
+              "args": {
+                "f": "@f",
+                "targets": {
+                  "op": "def.call",
+                  "def": "gameStep",
+                  "args": {
+                    "f": "@f",
+                    "dirs": "#gameKnightDirs"
+                  }
+                }
+              }
+            },
+            "king": {
+              "op": "def.call",
+              "def": "gamePlain",
+              "args": {
+                "f": "@f",
+                "targets": {
+                  "op": "def.call",
+                  "def": "gameStep",
+                  "args": {
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "$board",
+                      "kind": "eight"
+                    }
+                  }
+                }
+              }
+            },
+            "bishop": {
+              "op": "def.call",
+              "def": "gamePlain",
+              "args": {
+                "f": "@f",
+                "targets": {
+                  "op": "def.call",
+                  "def": "gameSlide",
+                  "args": {
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "$board",
+                      "kind": "diagonal"
+                    }
+                  }
+                }
+              }
+            },
+            "rook": {
+              "op": "def.call",
+              "def": "gamePlain",
+              "args": {
+                "f": "@f",
+                "targets": {
+                  "op": "def.call",
+                  "def": "gameSlide",
+                  "args": {
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "$board",
+                      "kind": "orthogonal"
+                    }
+                  }
+                }
+              }
+            },
+            "queen": {
+              "op": "def.call",
+              "def": "gamePlain",
+              "args": {
+                "f": "@f",
+                "targets": {
+                  "op": "def.call",
+                  "def": "gameSlide",
+                  "args": {
+                    "f": "@f",
+                    "dirs": {
+                      "op": "grid.directions",
+                      "of": "$board",
+                      "kind": "eight"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "op": "seq.empty"
+          }
+        }
+      }
+    },
+    "gameEpMoves": {
+      "op": "seq.select",
+      "source": {
+        "op": "seq.where",
+        "source": {
+          "op": "seq.selectMany",
+          "source": "#gameEpFromDirs",
+          "as": "d",
+          "select": {
+            "op": "grid.ray",
+            "grid": "$board",
+            "from": "$ep",
+            "dir": "@d",
+            "length": 1
+          }
+        },
+        "as": "c",
+        "predicate": {
+          "op": "cmp.eq",
+          "left": {
+            "op": "grid.at",
+            "grid": "$board",
+            "coord": "@c"
+          },
+          "right": "#gameMyPawn"
+        }
+      },
+      "as": "c",
+      "select": {
+        "op": "tuple.of",
+        "of": [
+          "@c",
+          "$ep",
+          "ep"
+        ]
+      }
+    },
+    "gameKingHome": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "e1",
+        "black": "e8"
+      }
+    },
+    "gameKingToK": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "g1",
+        "black": "g8"
+      }
+    },
+    "gameRookFromK": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "h1",
+        "black": "h8"
+      }
+    },
+    "gameRookToK": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "f1",
+        "black": "f8"
+      }
+    },
+    "gameKingToQ": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "c1",
+        "black": "c8"
+      }
+    },
+    "gameRookFromQ": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "a1",
+        "black": "a8"
+      }
+    },
+    "gameRookToQ": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "d1",
+        "black": "d8"
+      }
+    },
+    "gameKnightHomeQ": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "b1",
+        "black": "b8"
+      }
+    },
+    "gameRightK": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "$wk",
+        "black": "$bk"
+      }
+    },
+    "gameRightQ": {
+      "op": "branch.match",
+      "value": "#gameMe",
+      "cases": {
+        "white": "$wq",
+        "black": "$bq"
+      }
+    },
+    "gameCastleMoves": {
+      "op": "seq.selectMany",
+      "source": {
+        "op": "seq.of",
+        "of": [
+          {
+            "op": "branch.if",
+            "cond": {
+              "op": "logic.and",
+              "all": [
+                "#gameRightK",
+                {
+                  "op": "cmp.eq",
+                  "left": {
+                    "op": "grid.at",
+                    "grid": "$board",
+                    "coord": "#gameKingHome"
+                  },
+                  "right": "#gameMyKing"
+                },
+                {
+                  "op": "cmp.eq",
+                  "left": {
+                    "op": "grid.at",
+                    "grid": "$board",
+                    "coord": "#gameRookFromK"
+                  },
+                  "right": "#gameMyRook"
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameIsEmpty",
+                  "args": {
+                    "c": "#gameRookToK"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameIsEmpty",
+                  "args": {
+                    "c": "#gameKingToK"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameSafe",
+                  "args": {
+                    "sq": "#gameKingHome"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameSafe",
+                  "args": {
+                    "sq": "#gameRookToK"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameSafe",
+                  "args": {
+                    "sq": "#gameKingToK"
+                  }
+                }
+              ]
+            },
+            "then": {
+              "op": "seq.of",
+              "of": [
+                {
+                  "op": "tuple.of",
+                  "of": [
+                    "#gameKingHome",
+                    "#gameKingToK",
+                    "0-0"
+                  ]
+                }
+              ]
+            },
+            "else": {
+              "op": "seq.empty"
+            }
+          },
+          {
+            "op": "branch.if",
+            "cond": {
+              "op": "logic.and",
+              "all": [
+                "#gameRightQ",
+                {
+                  "op": "cmp.eq",
+                  "left": {
+                    "op": "grid.at",
+                    "grid": "$board",
+                    "coord": "#gameKingHome"
+                  },
+                  "right": "#gameMyKing"
+                },
+                {
+                  "op": "cmp.eq",
+                  "left": {
+                    "op": "grid.at",
+                    "grid": "$board",
+                    "coord": "#gameRookFromQ"
+                  },
+                  "right": "#gameMyRook"
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameIsEmpty",
+                  "args": {
+                    "c": "#gameRookToQ"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameIsEmpty",
+                  "args": {
+                    "c": "#gameKingToQ"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameIsEmpty",
+                  "args": {
+                    "c": "#gameKnightHomeQ"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameSafe",
+                  "args": {
+                    "sq": "#gameKingHome"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameSafe",
+                  "args": {
+                    "sq": "#gameRookToQ"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameSafe",
+                  "args": {
+                    "sq": "#gameKingToQ"
+                  }
+                }
+              ]
+            },
+            "then": {
+              "op": "seq.of",
+              "of": [
+                {
+                  "op": "tuple.of",
+                  "of": [
+                    "#gameKingHome",
+                    "#gameKingToQ",
+                    "0-0-0"
+                  ]
+                }
+              ]
+            },
+            "else": {
+              "op": "seq.empty"
+            }
+          }
+        ]
+      },
+      "as": "part",
+      "select": "@part"
+    },
+    "gamePseudoMoves": {
+      "op": "seq.selectMany",
+      "source": {
+        "op": "seq.of",
+        "of": [
+          {
+            "op": "seq.selectMany",
+            "source": {
+              "op": "grid.coords",
+              "of": "$board"
+            },
+            "as": "f",
+            "select": {
+              "op": "def.call",
+              "def": "gameMovesFrom",
+              "args": {
+                "f": "@f"
+              }
+            }
+          },
+          "#gameEpMoves",
+          "#gameCastleMoves"
+        ]
+      },
+      "as": "part",
+      "select": "@part"
+    },
+    "gameFrom": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "tuple.at",
+        "tuple": "@m",
+        "index": 0
+      }
+    },
+    "gameTo": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "tuple.at",
+        "tuple": "@m",
+        "index": 1
+      }
+    },
+    "gameTag": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "tuple.at",
+        "tuple": "@m",
+        "index": 2
+      }
+    },
+    "gameBoardAfter": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "f": {
+            "op": "def.call",
+            "def": "gameFrom",
+            "args": {
+              "m": "@m"
+            }
+          },
+          "t": {
+            "op": "def.call",
+            "def": "gameTo",
+            "args": {
+              "m": "@m"
+            }
+          },
+          "tag": {
+            "op": "def.call",
+            "def": "gameTag",
+            "args": {
+              "m": "@m"
+            }
+          },
+          "cleared": {
+            "op": "seq.selectMany",
+            "source": {
+              "op": "seq.of",
+              "of": [
+                {
+                  "op": "seq.of",
+                  "of": [
+                    "@f"
+                  ]
+                },
+                {
+                  "op": "branch.if",
+                  "cond": {
+                    "op": "cmp.eq",
+                    "left": "@tag",
+                    "right": "ep"
+                  },
+                  "then": {
+                    "op": "grid.ray",
+                    "grid": "$board",
+                    "from": "@t",
+                    "dir": "#gameHomeDir",
+                    "length": 1
+                  },
+                  "else": {
+                    "op": "seq.empty"
+                  }
+                },
+                {
+                  "op": "branch.match",
+                  "value": "@tag",
+                  "cases": {
+                    "0-0": {
+                      "op": "seq.of",
+                      "of": [
+                        "#gameRookFromK"
+                      ]
+                    },
+                    "0-0-0": {
+                      "op": "seq.of",
+                      "of": [
+                        "#gameRookFromQ"
+                      ]
+                    }
+                  },
+                  "default": {
+                    "op": "seq.empty"
+                  }
+                }
+              ]
+            },
+            "as": "part",
+            "select": "@part"
+          },
+          "rookTo": {
+            "op": "branch.match",
+            "value": "@tag",
+            "cases": {
+              "0-0": {
+                "op": "seq.of",
+                "of": [
+                  "#gameRookToK"
+                ]
+              },
+              "0-0-0": {
+                "op": "seq.of",
+                "of": [
+                  "#gameRookToQ"
+                ]
+              }
+            },
+            "default": {
+              "op": "seq.empty"
+            }
+          },
+          "placed": {
+            "op": "branch.match",
+            "value": "@tag",
+            "cases": {
+              "q": "#gameMyQueen",
+              "r": "#gameMyRook",
+              "b": "#gameMyBishop",
+              "n": "#gameMyKnight"
+            },
+            "default": {
+              "op": "grid.at",
+              "grid": "$board",
+              "coord": "@f"
+            }
+          }
+        },
+        "in": {
+          "op": "grid.withMany",
+          "grid": {
+            "op": "grid.with",
+            "grid": {
+              "op": "grid.withMany",
+              "grid": "$board",
+              "coords": "@cleared",
+              "value": null
+            },
+            "coord": "@t",
+            "value": "@placed"
+          },
+          "coords": "@rookTo",
+          "value": "#gameMyRook"
+        }
+      }
+    },
+    "gameLegal": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "b": {
+            "op": "def.call",
+            "def": "gameBoardAfter",
+            "args": {
+              "m": "@m"
+            }
+          }
+        },
+        "in": {
+          "op": "logic.not",
+          "value": {
+            "op": "def.call",
+            "def": "gameAttacked",
+            "args": {
+              "b": "@b",
+              "sq": {
+                "op": "def.call",
+                "def": "gameKingSquare",
+                "args": {
+                  "b": "@b",
+                  "colour": "#gameMe"
+                }
+              },
+              "by": "#gameFoe"
+            }
+          }
+        }
+      }
+    },
+    "gameHasLegalMove": {
+      "op": "seq.any",
+      "source": "#gamePseudoMoves",
+      "as": "m",
+      "predicate": {
+        "op": "def.call",
+        "def": "gameLegal",
+        "args": {
+          "m": "@m"
+        }
+      }
+    },
+    "gameIsPawnMove": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "cmp.eq",
+        "left": {
+          "op": "grid.at",
+          "grid": "$board",
+          "coord": {
+            "op": "def.call",
+            "def": "gameFrom",
+            "args": {
+              "m": "@m"
+            }
+          }
+        },
+        "right": "#gameMyPawn"
+      }
+    },
+    "gameIsCapture": {
+      "params": [
+        "m"
+      ],
+      "body": {
+        "op": "logic.or",
+        "any": [
+          {
+            "op": "cmp.eq",
+            "left": {
+              "op": "def.call",
+              "def": "gameTag",
+              "args": {
+                "m": "@m"
+              }
+            },
+            "right": "ep"
+          },
+          {
+            "op": "logic.not",
+            "value": {
+              "op": "cmp.isNull",
+              "value": {
+                "op": "grid.at",
+                "grid": "$board",
+                "coord": {
+                  "op": "def.call",
+                  "def": "gameTo",
+                  "args": {
+                    "m": "@m"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "gameCorner": {
+      "params": [
+        "c"
+      ],
+      "body": {
+        "op": "branch.match",
+        "value": "@c",
+        "cases": {
+          "a1": "a1",
+          "e1": "e1",
+          "h1": "h1",
+          "a8": "a8",
+          "e8": "e8",
+          "h8": "h8"
+        },
+        "default": "-"
+      }
+    },
+    "gameKeeps": {
+      "params": [
+        "rookSq",
+        "kingSq",
+        "m"
+      ],
+      "body": {
+        "op": "bind.let",
+        "bind": {
+          "f": {
+            "op": "def.call",
+            "def": "gameCorner",
+            "args": {
+              "c": {
+                "op": "def.call",
+                "def": "gameFrom",
+                "args": {
+                  "m": "@m"
+                }
+              }
+            }
+          },
+          "t": {
+            "op": "def.call",
+            "def": "gameCorner",
+            "args": {
+              "c": {
+                "op": "def.call",
+                "def": "gameTo",
+                "args": {
+                  "m": "@m"
+                }
+              }
+            }
+          }
+        },
+        "in": {
+          "op": "logic.and",
+          "all": [
+            {
+              "op": "cmp.ne",
+              "left": "@f",
+              "right": "@kingSq"
+            },
+            {
+              "op": "cmp.ne",
+              "left": "@f",
+              "right": "@rookSq"
+            },
+            {
+              "op": "cmp.ne",
+              "left": "@t",
+              "right": "@rookSq"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "inputs": {
+    "move": {
+      "actor": "#gameMe",
+      "params": {
+        "m": {
+          "domain": "#gamePseudoMoves"
+        }
+      },
+      "when": {
+        "op": "def.call",
+        "def": "gameLegal",
+        "args": {
+          "m": "@m"
+        }
+      },
+      "effects": [
+        {
+          "op": "state.set",
+          "path": "board",
+          "value": {
+            "op": "def.call",
+            "def": "gameBoardAfter",
+            "args": {
+              "m": "@m"
+            }
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "turn",
+          "value": "#gameFoe"
+        },
+        {
+          "op": "state.set",
+          "path": "ep",
+          "value": {
+            "op": "branch.if",
+            "cond": {
+              "op": "cmp.eq",
+              "left": {
+                "op": "def.call",
+                "def": "gameTag",
+                "args": {
+                  "m": "@m"
+                }
+              },
+              "right": "2"
+            },
+            "then": {
+              "op": "seq.elementAt",
+              "index": 0,
+              "source": {
+                "op": "grid.ray",
+                "grid": "$board",
+                "from": {
+                  "op": "def.call",
+                  "def": "gameTo",
+                  "args": {
+                    "m": "@m"
+                  }
+                },
+                "dir": "#gameHomeDir",
+                "length": 1
+              }
+            },
+            "else": null
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "idle",
+          "value": {
+            "op": "branch.if",
+            "cond": {
+              "op": "logic.or",
+              "any": [
+                {
+                  "op": "def.call",
+                  "def": "gameIsPawnMove",
+                  "args": {
+                    "m": "@m"
+                  }
+                },
+                {
+                  "op": "def.call",
+                  "def": "gameIsCapture",
+                  "args": {
+                    "m": "@m"
+                  }
+                }
+              ]
+            },
+            "then": 0,
+            "else": {
+              "op": "math.add",
+              "of": [
+                "$idle",
+                1
+              ]
+            }
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "wk",
+          "value": {
+            "op": "logic.and",
+            "all": [
+              "$wk",
+              {
+                "op": "def.call",
+                "def": "gameKeeps",
+                "args": {
+                  "m": "@m",
+                  "kingSq": "e1",
+                  "rookSq": "h1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "wq",
+          "value": {
+            "op": "logic.and",
+            "all": [
+              "$wq",
+              {
+                "op": "def.call",
+                "def": "gameKeeps",
+                "args": {
+                  "m": "@m",
+                  "kingSq": "e1",
+                  "rookSq": "a1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "bk",
+          "value": {
+            "op": "logic.and",
+            "all": [
+              "$bk",
+              {
+                "op": "def.call",
+                "def": "gameKeeps",
+                "args": {
+                  "m": "@m",
+                  "kingSq": "e8",
+                  "rookSq": "h8"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "op": "state.set",
+          "path": "bq",
+          "value": {
+            "op": "logic.and",
+            "all": [
+              "$bq",
+              {
+                "op": "def.call",
+                "def": "gameKeeps",
+                "args": {
+                  "m": "@m",
+                  "kingSq": "e8",
+                  "rookSq": "a8"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "terminal": {
+    "when": {
+      "op": "logic.or",
+      "any": [
+        {
+          "op": "cmp.gte",
+          "left": "$idle",
+          "right": 100
+        },
+        {
+          "op": "logic.not",
+          "value": "#gameHasLegalMove"
+        }
+      ]
+    },
+    "result": {
+      "op": "branch.if",
+      "cond": {
+        "op": "logic.not",
+        "value": "#gameHasLegalMove"
+      },
+      "then": {
+        "op": "branch.if",
+        "cond": {
+          "op": "def.call",
+          "def": "gameInCheck",
+          "args": {
+            "colour": "#gameMe"
+          }
+        },
+        "then": "#gameFoe",
+        "else": "draw"
+      },
+      "else": "draw"
+    }
+  }
+}

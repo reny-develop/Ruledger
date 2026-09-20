@@ -1,0 +1,44 @@
+{
+  // The twenty choices the reversi measurements are about, fixed here rather than worked
+  // out again on every run. A measurement is a claim about a fixture, and choices a
+  // procedure regenerates each time make the claim a report about whatever that procedure
+  // produced that day.
+  //
+  // How they were arrived at: walk reversi with the budget below, take the last input the
+  // first state offers, derive again, take the last input the next state with more than one
+  // input offers, and so on until there are twenty. One at a time, each read off the test
+  // design the ones before it produced — which is how a person makes them, and it matters,
+  // because the first one moves the order the walk goes in and everything below it is
+  // worked out again. Applying all twenty to one walk reaches the same design, which is why
+  // this file is enough.
+  //
+  // A state is named by how the walk arrives there. That is the name that still means this
+  // state after the rule set changes, and it is what makes the same twenty applicable to
+  // the versions one line away from this one.
+
+  "ruleSet": "reversi",
+  "budget": 3000,
+
+  "choices": [
+    { "state": "#0", "input": "place", "args": { "at": "d3" } },
+    { "state": "#0 + place(at: d3)", "input": "place", "args": { "at": "e3" } },
+    { "state": "#0 + place(at: d3) + place(at: e3)", "input": "place", "args": { "at": "f2" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2)", "input": "place", "args": { "at": "e2" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2)", "input": "place", "args": { "at": "f1" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1)", "input": "place", "args": { "at": "g1" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1)", "input": "place", "args": { "at": "h1" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1)", "input": "place", "args": { "at": "e1" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1)", "input": "place", "args": { "at": "d1" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1)", "input": "place", "args": { "at": "c2" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2)", "input": "place", "args": { "at": "d2" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2)", "input": "place", "args": { "at": "c1" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1)", "input": "place", "args": { "at": "b1" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1) + place(at: b1)", "input": "place", "args": { "at": "b2" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1) + place(at: b1) + place(at: b2)", "input": "place", "args": { "at": "g3" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1) + place(at: b1) + place(at: b2) + place(at: g3)", "input": "place", "args": { "at": "g2" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1) + place(at: b1) + place(at: b2) + place(at: g3) + place(at: g2)", "input": "place", "args": { "at": "h3" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1) + place(at: b1) + place(at: b2) + place(at: g3) + place(at: g2) + place(at: h3)", "input": "place", "args": { "at": "h2" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1) + place(at: b1) + place(at: b2) + place(at: g3) + place(at: g2) + place(at: h3) + place(at: h2)", "input": "place", "args": { "at": "f3" } },
+    { "state": "#0 + place(at: d3) + place(at: e3) + place(at: f2) + place(at: e2) + place(at: f1) + place(at: g1) + place(at: h1) + place(at: e1) + place(at: d1) + place(at: c2) + place(at: d2) + place(at: c1) + place(at: b1) + place(at: b2) + place(at: g3) + place(at: g2) + place(at: h3) + place(at: h2) + place(at: f3)", "input": "place", "args": { "at": "c3" } }
+  ]
+}
