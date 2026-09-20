@@ -9,9 +9,9 @@ namespace Ruledger.Verify
 {
     /// <summary>How far a walk gets, and what it has to do to observe an ending.</summary>
     /// <remarks>
-    /// Two claims about the budget. The first is that walking one route to the end is not a
+    /// Two claims about how far a walk goes. The first is that walking one route to the end is not a
     /// preference: spreading out by depth instead collects openings and finishes no game, so
-    /// no result is ever observed. The second is that raising the budget does not always
+    /// no result is ever observed. The second is that visiting more states does not always
     /// observe more — what a walk did not reach is what a walk did not reach, and reading it
     /// as what is not there is the misreading the whole method was written against.
     /// </remarks>
@@ -25,16 +25,16 @@ namespace Ruledger.Verify
         [Fact]
         public void WalkingOneRouteToTheEndIsWhatObservesAnEnding()
         {
-            const int budget = 3000;
+            const int states = 3000;
 
             Assert.Empty(ObservationScan.Of(Fixture.RuleSet("reversi")).Collapsed);
 
-            (int depth, int endings) = Broadest("reversi", budget);
-            TestDesign design = Fixture.Walk("reversi", budget);
+            (int depth, int endings) = Broadest("reversi", states);
+            TestDesign design = Fixture.Walk("reversi", states);
             int deepest = Deepest(design);
             int reached = design.States.Count(state => state.IsTerminal);
 
-            said.WriteLine($"reversi at budget {budget}: spreading out by depth reaches depth {depth} "
+            said.WriteLine($"reversi at {states} states: spreading out by depth reaches depth {depth} "
                 + $"and {endings} endings; one route to the end reaches depth {deepest} and {reached} endings");
 
             Assert.Equal(0, endings);
@@ -43,19 +43,19 @@ namespace Ruledger.Verify
             Assert.Equal(849, reached);
         }
 
-        // Chess is drawn out far enough that a budget raised five-fold reaches five times as
+        // Chess is drawn out far enough that five times the states reaches five times as
         // many states and not one more kind of ending. Which is the point: `draw` being the
         // only result here says the walk did not reach a mate, and says nothing at all about
         // whether chess has one.
         [Fact]
-        public void RaisingTheBudgetDoesNotAlwaysObserveMore()
+        public void VisitingMoreStatesDoesNotAlwaysObserveMore()
         {
             TestDesign shorter = Fixture.Walk("chess", 300);
             TestDesign longer = Fixture.Walk("chess", 1500);
 
-            said.WriteLine($"chess at budget 300: {shorter.States.Count(state => state.IsTerminal)} endings, "
+            said.WriteLine($"chess at 300 states: {shorter.States.Count(state => state.IsTerminal)} endings, "
                 + $"results {string.Join('/', Fixture.Results(shorter))}");
-            said.WriteLine($"chess at budget 1500: {longer.States.Count(state => state.IsTerminal)} endings, "
+            said.WriteLine($"chess at 1500 states: {longer.States.Count(state => state.IsTerminal)} endings, "
                 + $"results {string.Join('/', Fixture.Results(longer))}");
 
             Assert.Equal(["draw"], Fixture.Results(shorter));
@@ -78,9 +78,9 @@ namespace Ruledger.Verify
             return deepest;
         }
 
-        // The same rule set, the same budget, and every state at one depth taken before any
+        // The same rule set, the same states, and every state at one depth taken before any
         // state at the next.
-        private static (int Depth, int Endings) Broadest(string ruleSet, int budget)
+        private static (int Depth, int Endings) Broadest(string ruleSet, int states)
         {
             RuleContext rules = Fixture.Runtime.CreateContext(Fixture.RuleSet(ruleSet), null);
 
@@ -91,7 +91,7 @@ namespace Ruledger.Verify
             int deepest = 0;
             int endings = 0;
 
-            while (pending.Count > 0 && seen.Count < budget)
+            while (pending.Count > 0 && seen.Count < states)
             {
                 (string state, int depth) = pending.Dequeue();
                 deepest = Math.Max(deepest, depth);
@@ -107,7 +107,7 @@ namespace Ruledger.Verify
                 {
                     foreach (Outcome outcome in rules.GetOutcomes(input.ToInputDocument(rules.RuleSet), state, 64))
                     {
-                        if (seen.Count >= budget)
+                        if (seen.Count >= states)
                         {
                             break;
                         }

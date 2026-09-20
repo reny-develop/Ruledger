@@ -28,7 +28,7 @@ namespace Ruledger.Verify
             TestDesign split = Derive(composite, components);
             TestDesign whole = Derive(merged, []);
 
-            said.WriteLine($"{composite} against {merged} at budget 300: "
+            said.WriteLine($"{composite} against {merged} at 300 states: "
                 + $"{split.States.Count} states and {Fixture.Rejoins(split)} rejoins against "
                 + $"{whole.States.Count} and {Fixture.Rejoins(whole)}, "
                 + $"endings {string.Join('/', Fixture.Results(split))} against "
@@ -114,7 +114,7 @@ namespace Ruledger.Verify
 
         private static TestDesign Derive(string ruleSet, string[] components) =>
             TestDesign.Derive(
-                Fixture.Runtime, Fixture.RuleSet(ruleSet), Held(components), new WalkSettings(Budget: 300));
+                Fixture.Runtime, Fixture.RuleSet(ruleSet), Held(components), new WalkSettings(States: 300));
 
         // Everything observable about every state, with the alias a composite puts in front
         // of a component's input taken off, because that is the one thing the two do differ on.

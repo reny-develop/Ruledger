@@ -153,7 +153,7 @@ namespace Ruledger
         /// <summary>Gets what was drawn, as a <c>rulealize/outcome/v1</c> document, or null where nothing was.</summary>
         public string? Draw { get; }
 
-        /// <summary>Gets the name of the state this lands in, or null when the budget stopped before it.</summary>
+        /// <summary>Gets the name of the state this lands in, or null when the walk stopped before it.</summary>
         /// <remarks>
         /// Null is not "there is nothing there". It is the one honest thing to say about a
         /// state the walk never reached, and it is counted in <see cref="TestDesign.Unreached"/>.

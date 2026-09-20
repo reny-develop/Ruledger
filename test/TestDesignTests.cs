@@ -65,7 +65,7 @@ namespace Ruledger.Tests
                 });
         }
 
-        private static TestDesign Derive(string ruleSet, int budget) =>
-            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(Budget: budget));
+        private static TestDesign Derive(string ruleSet, int states) =>
+            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(States: states));
     }
 }

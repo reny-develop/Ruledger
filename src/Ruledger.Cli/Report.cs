@@ -9,14 +9,14 @@ namespace Ruledger.Cli
     /// <remarks>
     /// <para>
     /// Three of these lines exist because leaving them out would be dishonest rather than
-    /// brief. What the budget stopped in front of is not nothing being there; a choice that
+    /// brief. Where a walk stopped for want of states is not nothing being there; a choice that
     /// could not be carried is not a choice the machine may make instead; and two versions
     /// compared on different state are two walks that rejoined in different places, which is
     /// not the rules deciding differently. Each is reported where it happened.
     /// </para>
     /// <para>
     /// No number stands in for how much of a rule set was covered. The only quantity here
-    /// that could be read as one is how many landings the budget stopped in front of, and it
+    /// that could be read as one is how many landings the walk had no states left for, and it
     /// is a count of places rather than a share of anything.
     /// </para>
     /// </remarks>
@@ -32,13 +32,14 @@ namespace Ruledger.Cli
             {
                 Console.WriteLine(
                     $"  {Number(design.Unreached)} {(design.Unreached is 1 ? "landing" : "landings")} "
-                    + "the budget stopped in front of");
+                    + "the walk had no states left for");
             }
 
             Console.WriteLine($"  {Observation(design.Observed, design.Collapsed)}");
             Console.WriteLine(
-                $"  budget {Number(design.Settings.Budget)}, limit {Number(design.Settings.ValidationLimit)}, "
-                + $"outcomes {Number(design.Settings.OutcomeLimit)}");
+                $"  at most {Number(design.Settings.States)} states, "
+                + $"{Number(design.Settings.Candidates)} candidates in a state, "
+                + $"{Number(design.Settings.Outcomes)} outcomes for an input");
         }
 
         /// <summary>Writes every choice a person made and what became of it.</summary>
@@ -109,7 +110,7 @@ namespace Ruledger.Cli
         // Which of the two ways it went missing, said of each one. They are different enough
         // to be worth telling apart: an input that is not legal any more is a decision the new
         // rules made about a state that is still there, and a state the walk did not reach is
-        // the budget rather than the rules.
+        // where it stopped rather than what the rules say.
         //
         // The input comes first and the state second, because the state is named by how the
         // walk arrives at it and that name is as long as the walk is deep. Twenty steps in it
@@ -119,7 +120,7 @@ namespace Ruledger.Cli
         {
             EditOutcome.NotLegal =>
                 $"{Input(result.Edit)} is not legal in {result.Name ?? result.Edit.State}",
-            _ => $"{Input(result.Edit)} was not chosen: {result.Edit.State} was not reached inside the budget",
+            _ => $"{Input(result.Edit)} was not chosen: {result.Edit.State} was not reached before the walk stopped",
         };
 
         private static string Input(TestDesignEdit edit) =>

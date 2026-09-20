@@ -18,8 +18,8 @@ using Ruledger.Cli;
 // one folder is a folder neither can account for, so this one only reads.
 //
 // The three settings a walk has are the three flags below it, and they are the whole of what
-// is not derived from the rule set: how many states the walk may visit, how many candidates
-// the runtime may try in one state, and how many outcomes it may return for one input. They
+// is not derived from the rule set. Each is named after what it counts — states, candidates,
+// outcomes — because a reader of a test design cannot look up what else a name would mean. They
 // travel in the test design, which is why `diff` does not take them — it walks the new
 // version the way the test design in front of it was walked, and refuses a flag that would
 // make the two incomparable.
@@ -38,9 +38,9 @@ catch (IOException)
     // written then is already UTF-8, so there is nothing to set and nothing to report.
 }
 
-const int DefaultBudget = 3_000;
-const int DefaultValidationLimit = 10_000;
-const int DefaultOutcomeLimit = 64;
+const int DefaultStates = 3_000;
+const int DefaultCandidates = 10_000;
+const int DefaultOutcomes = 64;
 
 if (args.Length is 0)
 {
@@ -56,13 +56,13 @@ string? outPath = Option("--out");
 string? fromPath = Option("--from");
 bool write = args.Contains("--write");
 
-int budget = DefaultBudget;
-int validationLimit = DefaultValidationLimit;
-int outcomeLimit = DefaultOutcomeLimit;
+int states = DefaultStates;
+int candidates = DefaultCandidates;
+int outcomes = DefaultOutcomes;
 
-if (!Positive("--budget", ref budget)
-    || !Positive("--limit", ref validationLimit)
-    || !Positive("--outcomes", ref outcomeLimit))
+if (!Positive("--states", ref states)
+    || !Positive("--candidates", ref candidates)
+    || !Positive("--outcomes", ref outcomes))
 {
     return Exit.Misread;
 }
@@ -71,7 +71,7 @@ return args switch
 {
     ["derive", string ruleSet, ..] => DeriveCommand.Run(
         ruleSet, plugins, ruleSets, outPath, fromPath,
-        new WalkSettings(budget, validationLimit, outcomeLimit)),
+        new WalkSettings(states, candidates, outcomes)),
 
     // A walk told to go a different distance visits different states, and none of that is
     // the rule set deciding differently. The settings are in the test design being applied;
@@ -86,7 +86,7 @@ return args switch
 };
 
 string? Walked() =>
-    new[] { "--budget", "--limit", "--outcomes" }.FirstOrDefault(flag => args.Contains(flag));
+    new[] { "--states", "--candidates", "--outcomes" }.FirstOrDefault(flag => args.Contains(flag));
 
 static int Refuse(string flag)
 {
@@ -131,9 +131,9 @@ static int Usage()
     Console.Error.WriteLine("  --out <file>         where derive writes    (default beside the rule set)");
     Console.Error.WriteLine("  --from <file>        the test design to carry the choices of (default --out)");
     Console.Error.WriteLine("  --write              amend the test design diff was given");
-    Console.Error.WriteLine("  --budget <n>         states the walk may visit          (default 3000)");
-    Console.Error.WriteLine("  --limit <n>          candidates GetValidInputs may try  (default 10000)");
-    Console.Error.WriteLine("  --outcomes <n>       outcomes GetOutcomes may return    (default 64)");
+    Console.Error.WriteLine("  --states <n>         states to visit before stopping    (default 3000)");
+    Console.Error.WriteLine("  --candidates <n>     candidate inputs to try in a state (default 10000)");
+    Console.Error.WriteLine("  --outcomes <n>       outcomes to follow for one input   (default 64)");
     Console.Error.WriteLine();
     Console.Error.WriteLine("exit: 0 nothing to report, 1 could not be done, 2 command line not understood,");
     Console.Error.WriteLine("      3 the rules decided differently, a choice could not be carried, or the two");

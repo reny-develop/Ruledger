@@ -25,9 +25,9 @@ namespace Ruledger.Verify
             int endings = design.States.Count(state => state.IsTerminal);
 
             said.WriteLine(
-                $"{design.RuleSet} at budget 300: {design.States.Count} states, {pairs} legal inputs over them, "
+                $"{design.RuleSet} at 300 states: {design.States.Count} states, {pairs} legal inputs over them, "
                 + $"{endings} final, results {string.Join('/', Fixture.Results(design))}, "
-                + $"{design.Unreached} landings the budget stopped in front of");
+                + $"{design.Unreached} landings the walk had no states left for");
 
             // Every state says all three, and a state that says nothing about one of them
             // would be a state a test could not be read off.
@@ -46,8 +46,8 @@ namespace Ruledger.Verify
         }
 
         // What can be counted is bounded by what can be observed. There is no fourth quantity
-        // here and no number standing in for how much of the rule set was covered: what the
-        // budget did not reach is a count of places, and it is the only number of its kind.
+        // here and no number standing in for how much of the rule set was covered: where the
+        // walk stopped is a count of places, and it is the only number of its kind.
         [Fact]
         public void WhatCanBeCountedIsWhatCanBeObserved()
         {
@@ -58,7 +58,7 @@ namespace Ruledger.Verify
             IReadOnlyList<string> results = Fixture.Results(design);
 
             said.WriteLine(
-                $"reversi at budget 3000: {pairs} state-and-input pairs, {endings} endings, "
+                $"reversi at 3000 states: {pairs} state-and-input pairs, {endings} endings, "
                 + $"{results.Count} results ({string.Join('/', results)})");
 
             Assert.Equal(3000, design.States.Count);
@@ -81,16 +81,16 @@ namespace Ruledger.Verify
             Assert.All(ending.Moves, move => Assert.Empty(move.Landings));
         }
 
-        // What the budget stopped in front of is reported as that, and never as nothing being
+        // What the walk stopped in front of is reported as that, and never as nothing being
         // there. Every landing the walk did not take is counted, and the count is the sum of
         // them rather than a figure arrived at some other way.
         [Fact]
-        public void WhatTheBudgetDidNotReachIsSaidSo()
+        public void WhereTheWalkStoppedIsSaidSo()
         {
             TestDesign design = Fixture.Walk("reversi", 300);
 
-            said.WriteLine($"reversi at budget 300: {design.States.Count} states, "
-                + $"{design.Unreached} landings the budget stopped in front of");
+            said.WriteLine($"reversi at 300 states: {design.States.Count} states, "
+                + $"{design.Unreached} landings the walk had no states left for");
 
             Assert.Equal(300, design.States.Count);
             Assert.Equal(

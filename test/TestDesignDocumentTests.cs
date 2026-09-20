@@ -37,7 +37,7 @@ namespace Ruledger.Tests
 
             Assert.Equal("ruledger/test-design/v1", design.GetProperty("$schema").GetString());
             Assert.Equal("approval@1.0.0", design.GetProperty("ruleSet").GetString());
-            Assert.Equal(300, design.GetProperty("settings").GetProperty("budget").GetInt32());
+            Assert.Equal(300, design.GetProperty("settings").GetProperty("states").GetInt32());
             Assert.Equal(["stage"], design.GetProperty("observed").EnumerateArray().Select(field => field.GetString()));
             Assert.Equal(["reason"], design.GetProperty("collapsed").EnumerateArray().Select(field => field.GetString()));
         }
@@ -95,13 +95,13 @@ namespace Ruledger.Tests
             Assert.Equal("blackjack@1.0.0", first.GetProperty("drew").GetProperty("ruleSet").GetString());
         }
 
-        // The budget stopped in front of somewhere, and that is what is said, rather than the
+        // The states stopped in front of somewhere, and that is what is said, rather than the
         // move being left out as though it went nowhere.
         [Fact]
-        public void ALandingTheBudgetStoppedBeforeIsWrittenAsNothingReached()
+        public void ALandingTheWalkStoppedBeforeIsWrittenAsNothingReached()
         {
             JsonElement design = Parse(TestDesign
-                .Derive(Vocabulary.Runtime, Vocabulary.Read("reversi"), new WalkSettings(Budget: 20))
+                .Derive(Vocabulary.Runtime, Vocabulary.Read("reversi"), new WalkSettings(States: 20))
                 .ToJson());
 
             int stopped = design.GetProperty("states")
@@ -146,7 +146,7 @@ namespace Ruledger.Tests
         }
 
         private static TestDesign Derive(string ruleSet) =>
-            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(Budget: 300));
+            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(States: 300));
 
         private static JsonElement Parse(string design) => JsonDocument.Parse(design).RootElement.Clone();
     }

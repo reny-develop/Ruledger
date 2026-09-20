@@ -39,7 +39,7 @@ namespace Ruledger.Tests
             string ruleSet = Copy("approval");
 
             (int code, string said) = Run(() => DeriveCommand.Run(
-                ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 3000)));
+                ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
 
             Assert.Equal(0, code);
             Assert.True(File.Exists(Path.Combine(this.folder, "approval.test-design.json")));
@@ -56,10 +56,10 @@ namespace Ruledger.Tests
             string ruleSet = Copy("roster");
             string written = Path.Combine(this.folder, "roster.test-design.json");
 
-            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 200)));
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 200)));
             byte[] first = File.ReadAllBytes(written);
 
-            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 200)));
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 200)));
 
             Assert.Equal(first, File.ReadAllBytes(written));
         }
@@ -73,11 +73,11 @@ namespace Ruledger.Tests
             string ruleSet = Copy("approval");
             string written = Path.Combine(this.folder, "approval.test-design.json");
 
-            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 3000)));
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
             Choose(written, ("#0", "submit"), ("#0", "nonesuch"));
 
             (int code, string said) = Run(() => DeriveCommand.Run(
-                ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 3000)));
+                ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
 
             Assert.Equal(3, code);
             Assert.Contains("1 of 2 choices carried", said, StringComparison.Ordinal);
@@ -92,7 +92,7 @@ namespace Ruledger.Tests
         {
             string ruleSet = Copy("approval");
             string written = Path.Combine(this.folder, "approval.test-design.json");
-            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 3000)));
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
 
             (int code, string said) = Run(() => DiffCommand.Run(written, ruleSet, Plugins, null, write: false));
 
@@ -108,7 +108,7 @@ namespace Ruledger.Tests
             string ruleSet = Copy("approval");
             string later = Copy("approval-results");
             string written = Path.Combine(this.folder, "approval.test-design.json");
-            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 3000)));
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
 
             (int code, string said) = Run(() => DiffCommand.Run(written, later, Plugins, null, write: false));
 
@@ -129,7 +129,7 @@ namespace Ruledger.Tests
             string ruleSet = Copy("reversi");
             string counted = Copy("reversi-counted");
             string written = Path.Combine(this.folder, "reversi.test-design.json");
-            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 200)));
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 200)));
 
             (int code, string said) = Run(() => DiffCommand.Run(written, counted, Plugins, null, write: false));
 
@@ -145,7 +145,7 @@ namespace Ruledger.Tests
             string ruleSet = Copy("approval");
             string later = Copy("approval-results");
             string written = Path.Combine(this.folder, "approval.test-design.json");
-            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 3000)));
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
 
             _ = Run(() => DiffCommand.Run(written, later, Plugins, null, write: true));
 
@@ -177,7 +177,7 @@ namespace Ruledger.Tests
             string ruleSet = Copy("seating");
 
             (int code, string said) = Run(() => DeriveCommand.Run(
-                ruleSet, Plugins, null, null, null, new WalkSettings(Budget: 3000)));
+                ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
 
             Assert.Equal(0, code);
             Assert.Contains("7 states", said, StringComparison.Ordinal);

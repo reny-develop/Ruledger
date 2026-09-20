@@ -66,18 +66,18 @@ namespace Ruledger
         /// </remarks>
         public IReadOnlyList<EditResult> Edits { get; }
 
-        /// <summary>Gets how many landings the budget stopped before.</summary>
+        /// <summary>Gets how many landings there were no states left to visit.</summary>
         /// <remarks>
         /// Not "how much is missing", which nobody can say. It is how many places the walk was
         /// standing in front of when it ran out, and it is reported rather than rounded off, so
-        /// that what a budget did not reach is never read as what is not there.
+        /// that where a walk stopped for want of states is never read as what is not there.
         /// </remarks>
         public int Unreached { get; }
 
         /// <summary>Walks a rule set and writes down what is observable along the way.</summary>
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
         /// <param name="ruleSet">The rule set, as text.</param>
-        /// <param name="settings">How far to go. The default budget is three thousand states.</param>
+        /// <param name="settings">How far to go. The default is three thousand states.</param>
         /// <returns>The test design.</returns>
         /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
         public static TestDesign Derive(RuleRuntime runtime, string ruleSet, WalkSettings? settings = null) =>
@@ -87,7 +87,7 @@ namespace Ruledger
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
         /// <param name="ruleSet">The rule set, as text.</param>
         /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
-        /// <param name="settings">How far to go. The default budget is three thousand states.</param>
+        /// <param name="settings">How far to go. The default is three thousand states.</param>
         /// <param name="edits">Choices a person made, which the walk takes first where it can.</param>
         /// <returns>The test design.</returns>
         /// <remarks>
@@ -167,8 +167,9 @@ namespace Ruledger
                 Arrive(rules.InitialState, null, null);
 
                 // The recursion is written out because its depth is the depth of the walk, and
-                // that is a budget away from unbounded: a rule set holding a history never
-                // returns to a state it has been in, so one route can be as long as the budget.
+                // only the count of states it may visit keeps that bounded: a rule set holding a
+                // history never returns to a state it has been in, so one route can be as long
+                // as that count.
                 while (this.descending.Count > 0)
                 {
                     Entry entry = this.descending.Peek();
@@ -234,7 +235,7 @@ namespace Ruledger
                     return seenAs;
                 }
 
-                if (this.order.Count >= settings.Budget)
+                if (this.order.Count >= settings.States)
                 {
                     this.unreached++;
                     return null;
@@ -260,7 +261,7 @@ namespace Ruledger
                 entry.IsTerminal = terminal.IsTerminal;
                 entry.Result = terminal.Result;
 
-                ValidInputSet legal = rules.GetValidInputs(state, settings.ValidationLimit);
+                ValidInputSet legal = rules.GetValidInputs(state, settings.Candidates);
                 entry.Evaluated = legal.Evaluated;
                 entry.Truncated = legal.Truncated;
 
@@ -275,7 +276,7 @@ namespace Ruledger
                     // offers are written down and none of them is followed.
                     if (!terminal.IsTerminal)
                     {
-                        foreach (Outcome outcome in rules.GetOutcomes(document, state, settings.OutcomeLimit))
+                        foreach (Outcome outcome in rules.GetOutcomes(document, state, settings.Outcomes))
                         {
                             Landing landing = new(
                                 outcome.Probability,

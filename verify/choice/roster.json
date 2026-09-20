@@ -9,7 +9,7 @@
   // the states they name are named the same way, by how the walk arrives.
 
   "ruleSet": "roster",
-  "budget": 3000,
+  "states": 3000,
 
   "choices": [
     { "state": "#0", "input": "assign", "args": { "who": "di", "shift": "fri-pm" } },

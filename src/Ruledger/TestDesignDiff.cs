@@ -123,7 +123,7 @@ namespace Ruledger
 
         private static TestDesignDiff Between(TestDesign before, TestDesign after, Route route, int[] was, int[] now)
         {
-            // A budget or a limit that moved would show up as states that are not there and
+            // A setting that moved would show up as states that are not there and
             // inputs that were not looked for, and none of that is the rule set deciding
             // differently. Two test designs walked differently are not comparable, and saying so is
             // the only thing to do about it.
@@ -251,7 +251,7 @@ namespace Ruledger
         // input are told apart by nothing else.
         private sealed class Where(Route route, int[] routes, Dictionary<string, int> named)
         {
-            // Not a route, and not the opening either: what the budget stopped in front of.
+            // Not a route, and not the opening either: what the walk stopped in front of.
             private const int Nowhere = -1;
 
             // Held against each other by the number of the route, which the two test designs

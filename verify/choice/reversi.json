@@ -4,7 +4,7 @@
   // procedure regenerates each time make the claim a report about whatever that procedure
   // produced that day.
   //
-  // How they were arrived at: walk reversi with the budget below, take the last input the
+  // How they were arrived at: walk reversi with the state count below, take the last input the
   // first state offers, derive again, take the last input the next state with more than one
   // input offers, and so on until there are twenty. One at a time, each read off the test
   // design the ones before it produced — which is how a person makes them, and it matters,
@@ -17,7 +17,7 @@
   // the versions one line away from this one.
 
   "ruleSet": "reversi",
-  "budget": 3000,
+  "states": 3000,
 
   "choices": [
     { "state": "#0", "input": "place", "args": { "at": "d3" } },

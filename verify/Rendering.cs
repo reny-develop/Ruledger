@@ -47,7 +47,7 @@ namespace Ruledger.Verify
                 Block(state, named, lines);
             }
 
-            said.WriteLine($"{ruleSet} at budget 60: {blocks} states folded into "
+            said.WriteLine($"{ruleSet} at 60 states: {blocks} states folded into "
                 + $"{lines.ToString().Split('\n').Length - 1} lines, in the order the document has them");
             said.WriteLine(string.Join('\n', lines.ToString().Split('\n').Take(7)));
 

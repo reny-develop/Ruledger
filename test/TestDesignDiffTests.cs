@@ -24,7 +24,7 @@ namespace Ruledger.Tests
             };
 
             TestDesign design = TestDesign.Derive(
-                Vocabulary.Runtime, Vocabulary.Read("seating"), components, new WalkSettings(Budget: 3000));
+                Vocabulary.Runtime, Vocabulary.Read("seating"), components, new WalkSettings(States: 3000));
 
             TestDesignDiff diff = TestDesignDiff.Of(
                 Vocabulary.Runtime, design.ToJson(), Vocabulary.Read("seating"), components);
@@ -40,7 +40,7 @@ namespace Ruledger.Tests
         public void AStateArrivedAtByADrawIsNamedAfterWhatWasDrawn()
         {
             TestDesign design = TestDesign.Derive(
-                Vocabulary.Runtime, Vocabulary.Read("blackjack"), new WalkSettings(Budget: 300));
+                Vocabulary.Runtime, Vocabulary.Read("blackjack"), new WalkSettings(States: 300));
 
             Route route = new();
             int[] routes = route.Of(design);
@@ -71,9 +71,9 @@ namespace Ruledger.Tests
         public void TwoDesignsWalkedDifferentWaysAreNotCompared()
         {
             TestDesign shorter = TestDesign.Derive(
-                Vocabulary.Runtime, Vocabulary.Read("approval"), new WalkSettings(Budget: 2));
+                Vocabulary.Runtime, Vocabulary.Read("approval"), new WalkSettings(States: 2));
             TestDesign whole = TestDesign.Derive(
-                Vocabulary.Runtime, Vocabulary.Read("approval"), new WalkSettings(Budget: 3000));
+                Vocabulary.Runtime, Vocabulary.Read("approval"), new WalkSettings(States: 3000));
 
             InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
                 () => TestDesignDiff.Between(shorter, whole));

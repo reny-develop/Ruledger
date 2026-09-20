@@ -55,8 +55,8 @@ namespace Ruledger.Verify
         }
 
         /// <summary>Walks a rule set, with the choices a person made where there are any.</summary>
-        public static TestDesign Walk(string ruleSet, int budget, IReadOnlyList<TestDesignEdit>? choices = null) =>
-            TestDesign.Derive(Runtime, RuleSet(ruleSet), null, new WalkSettings(Budget: budget), choices);
+        public static TestDesign Walk(string ruleSet, int states, IReadOnlyList<TestDesignEdit>? choices = null) =>
+            TestDesign.Derive(Runtime, RuleSet(ruleSet), null, new WalkSettings(States: states), choices);
 
         /// <summary>Applies a test design to a version of the rule set, which is to say diffs the two.</summary>
         public static TestDesignDiff Apply(TestDesign design, string ruleSet) =>

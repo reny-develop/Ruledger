@@ -109,7 +109,7 @@ namespace Ruledger.Tests
                 Vocabulary.Runtime,
                 Vocabulary.Read("approval"),
                 null,
-                new WalkSettings(Budget: 300),
+                new WalkSettings(States: 300),
                 edits);
     }
 }

@@ -34,14 +34,14 @@ Three things are observable about a state and only those are written down: which
 
 The one place a person writes is a choice — from this state, take this input first. Everything downstream of it is worked out again. An observation written by hand would be the only thing in a test design that can be wrong, so there is nowhere to write one.
 
-No number that stands in for quality. Ruledger reports what a budget did not reach and nothing else of the kind; a percentage would invite exactly the misreading the method was written against.
+No number that stands in for quality. Ruledger reports where a walk stopped for want of states to visit and nothing else of the kind; a percentage would invite exactly the misreading the method was written against.
 
 Nothing is hidden when it fails. A choice that could not be carried is reported and never dropped back to what the machine would have picked, and a place the walk did not reach is reported as that rather than as nothing being there. There should be no code path that quietly reverts to a default.
 
 ## The walk
 Deterministic: the same rule set and the same settings visit the same states in the same order. No randomness, no seed, and nothing that depends on the enumeration order of a hash table. Everything that is not derived from the rule set and can be varied is a setting and travels with the test design.
 
-Written on an explicit stack. The depth of a walk is a budget away from unbounded — a rule set holding a history never returns to a state it has been in — and recursion breaks at three thousand frames.
+Written on an explicit stack. Only the count of states a walk may visit keeps its depth bounded — a rule set holding a history never returns to a state it has been in — and recursion breaks at three thousand frames.
 
 Splitting a rule set into a composite and the parts it holds is a way of writing it, not a different set of rules, so the composite is walked as the one document it stands for would be. `verify/ruleset/` keeps both forms of two processes for that reason.
 

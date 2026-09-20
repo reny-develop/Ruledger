@@ -56,17 +56,17 @@ namespace Ruledger.Verify
         // The measurement collapsing exists for. roster-trail keeps every entry of its audit
         // trail, so no two of its states are ever equal as documents: comparing them whole,
         // the walk never once comes back to a position it has been in, and one of the two
-        // results this rule set has is never reached inside the budget.
+        // results this rule set has is never reached before the walk stops.
         [Fact]
         public void WithoutCollapsingAWalkNeverComesBack()
         {
             string text = Fixture.RuleSet("roster-trail");
-            WalkSettings settings = new(Budget: 3000);
+            WalkSettings settings = new(States: 3000);
 
             TestDesign collapsed = TestDesign.Derive(Fixture.Runtime, text, null, settings, ObservationScan.Of(text));
             TestDesign whole = TestDesign.Derive(Fixture.Runtime, text, null, settings, ObservationScan.Whole(text));
 
-            said.WriteLine($"roster-trail at budget 3000: dropping what nothing observes, "
+            said.WriteLine($"roster-trail at 3000 states: dropping what nothing observes, "
                 + $"{Fixture.Rejoins(collapsed)} rejoins and results {string.Join('/', Fixture.Results(collapsed))}; "
                 + $"comparing whole states, {Fixture.Rejoins(whole)} rejoins and results "
                 + $"{string.Join('/', Fixture.Results(whole))}");
@@ -83,9 +83,9 @@ namespace Ruledger.Verify
         {
             string text = Fixture.RuleSet("roster-trail");
             TestDesign whole = TestDesign.Derive(
-                Fixture.Runtime, text, null, new WalkSettings(Budget: 3000), ObservationScan.Whole(text));
+                Fixture.Runtime, text, null, new WalkSettings(States: 3000), ObservationScan.Whole(text));
 
-            said.WriteLine($"roster-trail compared whole at budget 3000: "
+            said.WriteLine($"roster-trail compared whole at 3000 states: "
                 + $"{whole.States.Count(state => state.IsTerminal)} endings reached anyway");
 
             Assert.True(whole.States.Count(state => state.IsTerminal) > 900);

@@ -51,27 +51,51 @@ $ rulealize restore reversi.json
 $ ruledger derive reversi.json
 reversi@1.0.0
   3,000 states, 849 final: black 842, draw 5, white 2
-  252 landings the budget stopped in front of
+  252 landings the walk had no states left for
   compared on board, turn, passes
-  budget 3,000, limit 10,000, outcomes 64
+  at most 3,000 states, 10,000 candidates in a state, 64 outcomes for an input
   -> reversi.test-design.json
 ```
 
-Two seconds. Read the lines in order:
+Two seconds. What it just did: start in the state the rule set starts in, ask the runtime
+which inputs are legal there, take the first of them and carry on from where it lands — down
+one route to its end, then back up to the next input it had not taken — writing down every
+state it had not seen before, and stopping once three thousand of them are written down.
+**That is the walk**, and three thousand is the default of `--states`, which is how many it
+may visit. The word "walk" is used below in exactly that sense.
 
-- **3,000 states** is the budget, not the game. Reversi has around 10²⁸ reachable positions;
-  every walk of it stops somewhere, and where it stopped is recorded rather than glossed.
-- **849 final** are the positions the rules call finished, by what they call the outcome.
-- **252 landings the budget stopped in front of.** Not "252 things are missing" — nobody can
-  say that. It is how many places the walk was standing in front of when it ran out. It is
-  the only number of its kind Ruledger prints; there is no percentage and no coverage
-  figure, because a number standing in for quality is the thing this method was written
-  against.
-- **compared on board, turn, passes.** Ruledger worked out from the document which state two
-  positions have to agree on to be the same position. Nobody declared it. `ruledger observe`
-  asks the same question on its own.
-- **budget, limit, outcomes.** The three settings, recorded in the test design, because none
-  of them comes from the rule set and two designs are only comparable when they match.
+Read the lines in order:
+
+- **3,000 states** is where the walk was told to stop, not where reversi runs out. The game
+  has around 10²⁸ reachable positions; every walk of it stops somewhere, and where it
+  stopped is recorded rather than glossed.
+- **849 final** are the positions the rules call finished, counted by the result the rules
+  give each one: black 842, draw 5, white 2.
+- **252 landings the walk had no states left for.** An input was applied, it arrived somewhere
+  the walk had not been, and its three thousand states were spent — 252 times. Not "252 things
+  are missing", which nobody can say. It is the only number of its kind Ruledger prints;
+  there is no percentage and no coverage figure, because a number standing in for quality is
+  the thing this method was written against.
+- **compared on board, turn, passes.** The walk has to recognise a position it has already
+  been in, or it would write that position down a second time and walk on from it again. Two
+  positions count as the same one when they agree on `board`, `turn` and `passes` — which is
+  everything reversi's state declares. Nobody listed those three: Ruledger read the rule set
+  and found that all three are read by something observable. A field that nothing observable
+  reads is left out of the comparison, and the line says so — which is what happens to the
+  roster's audit trail further down. `ruledger observe` asks this question on its own.
+- **at most 3,000 states, 10,000 candidates in a state, 64 outcomes for an input.** The three
+  settings this walk ran with, each a count of the thing it limits. None of them comes from
+  the rule set:
+
+| | |
+|---|---|
+| `--states` 3,000 | states to visit before stopping |
+| `--candidates` 10,000 | candidate inputs to try in one state before giving up on finding more legal ones there. The opening position has 65 candidates — `place` on each of the board's 64 squares, and `pass` — which is the `"evaluated": 65` in the file below |
+| `--outcomes` 64 | outcomes of one random draw to follow for an input. Reversi never draws; blackjack does |
+
+They are written into the test design because two designs are only comparable when they
+match. A state the walk never visited because it was told to stop is not the rules deciding
+differently.
 
 ## What came out
 
@@ -82,9 +106,9 @@ Two seconds. Read the lines in order:
   "$schema": "ruledger/test-design/v1",
   "ruleSet": "reversi@1.0.0",
   "settings": {
-    "budget": 3000,
-    "validationLimit": 10000,
-    "outcomeLimit": 64
+    "states": 3000,
+    "candidates": 10000,
+    "outcomes": 64
   },
   "observed": [
     "board",
@@ -144,8 +168,8 @@ this file to write an observation by hand — if there were, that would be the o
 test design that could be wrong.
 
 `"to": null` on three of the four opening moves is worth stopping at. The walk takes one
-route to the end before coming back, so it spent the whole budget below `place(at: e6)` and
-never got back up to `f5`. Reported as that, and never as those moves leading nowhere.
+route to the end before coming back, so it spent all three thousand states below
+`place(at: e6)` and never got back up to `f5`. Reported as that, and never as those moves leading nowhere.
 
 ## Change one line
 
@@ -232,17 +256,19 @@ rulealize restore roster.json
 $ ruledger derive roster.json
 roster@1.0.0
   3,000 states, 998 final: complete 997, stuck 1
-  16,424 landings the budget stopped in front of
+  16,424 landings the walk had no states left for
   compared on staff, shifts, assigned — log dropped
-  budget 3,000, limit 10,000, outcomes 64
+  at most 3,000 states, 10,000 candidates in a state, 64 outcomes for an input
   -> roster.test-design.json
 ```
 
-`log dropped` is Ruledger having worked out that this rule set keeps an audit trail nothing
-observable reads. Two positions are the same position whatever the trail says. Without that,
-a walk of a rule set that keeps a history never comes back to a position it has been in —
-measured, in this repository: 2,052 rejoins with the trail dropped, 0 without, and one of
-this rule set's two endings never reached inside the budget.
+`log dropped` is the same question as `compared on`, answered the other way. This state
+declares four fields, and `log` is an audit trail: nothing observable reads it, so it is left
+out when two positions are compared, and two positions are the same position whatever the
+trail behind them says. Without that they never would be — the trail is different every time,
+so the walk would never come back to a position it has been in. Measured, in this repository:
+2,052 rejoins with the trail left out, 0 with it in, and one of this rule set's two endings
+never reached in three thousand states.
 
 ### Writing the one thing a person writes
 
@@ -262,9 +288,9 @@ and derive again:
 $ ruledger derive roster.json
 roster@1.0.0
   3,000 states, 998 final: complete 997, stuck 1
-  16,465 landings the budget stopped in front of
+  16,465 landings the walk had no states left for
   compared on staff, shifts, assigned — log dropped
-  budget 3,000, limit 10,000, outcomes 64
+  at most 3,000 states, 10,000 candidates in a state, 64 outcomes for an input
   choices from 'roster.test-design.json'
   1 choice, all carried
   -> roster.test-design.json
@@ -333,8 +359,8 @@ placing `di` — who is not senior — and make the same change. The tail of the
 ```
   0 of 20 choices carried
     assign(who: di, shift: fri-pm) is not legal in #0
-    release(shift: fri-pm) was not chosen: #0 + assign(who: di, shift: fri-pm) was not reached inside the budget
-    release(shift: fri-pm) was not chosen: #0 + assign(who: di, shift: fri-pm) + assign(who: ann, shift: mon-am) was not reached inside the budget
+    release(shift: fri-pm) was not chosen: #0 + assign(who: di, shift: fri-pm) was not reached before the walk stopped
+    release(shift: fri-pm) was not chosen: #0 + assign(who: di, shift: fri-pm) + assign(who: ann, shift: mon-am) was not reached before the walk stopped
 ```
 
 Either the state is still there and the input is not legal in it any more, or the walk did

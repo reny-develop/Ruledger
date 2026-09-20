@@ -23,8 +23,8 @@ namespace Ruledger
     /// Where the rules draw nothing, applying an input settles the next state, so a move says
     /// <c>to</c>. Where they draw, it says <c>lands</c>, one entry per branch with what was
     /// drawn and how likely it was — the same distinction Rulealize makes by leaving an outcome
-    /// document out when there is nothing in it. <c>"to": null</c> is a landing the budget
-    /// stopped in front of; a move with neither is a move in a state the rules call final,
+    /// document out when there is nothing in it. <c>"to": null</c> is a landing the walk had
+    /// no states left to visit; a move with neither is a move in a state the rules call final,
     /// offered and not followed.
     /// </para>
     /// </remarks>
@@ -52,9 +52,9 @@ namespace Ruledger
                 writer.WriteString("ruleSet", design.RuleSet);
 
                 writer.WriteStartObject("settings");
-                writer.WriteNumber("budget", design.Settings.Budget);
-                writer.WriteNumber("validationLimit", design.Settings.ValidationLimit);
-                writer.WriteNumber("outcomeLimit", design.Settings.OutcomeLimit);
+                writer.WriteNumber("states", design.Settings.States);
+                writer.WriteNumber("candidates", design.Settings.Candidates);
+                writer.WriteNumber("outcomes", design.Settings.Outcomes);
                 writer.WriteEndObject();
 
                 WriteNames(writer, "observed", design.Observed);
@@ -94,9 +94,9 @@ namespace Ruledger
             return new TestDesign(
                 root.GetProperty("ruleSet").GetString() ?? string.Empty,
                 new WalkSettings(
-                    settings.GetProperty("budget").GetInt32(),
-                    settings.GetProperty("validationLimit").GetInt32(),
-                    settings.GetProperty("outcomeLimit").GetInt32()),
+                    settings.GetProperty("states").GetInt32(),
+                    settings.GetProperty("candidates").GetInt32(),
+                    settings.GetProperty("outcomes").GetInt32()),
                 ReadNames(root, "observed"),
                 ReadNames(root, "collapsed"),
                 [.. root.GetProperty("states").EnumerateArray().Select(ReadState)],

@@ -14,12 +14,13 @@ and it is the only part of the work Ruledger refuses to guess at.
 Change the rule set, run it again, and the diff is the blast radius — which states gained or
 lost a legal input, which outcomes moved. Edits the developer made to the previous test
 design are carried over; whatever could not be carried is reported instead of silently reset.
-How far the walk goes is a budget, and what the budget did not reach is reported as not
-reached, never as not there.
+How far the walk goes is a number of states it may visit, and where it stopped for want of
+them is reported as that, never as nothing being there.
 
 The walk is reproducible. The same rule set visits the same states in the same order every
-time: no randomness, no seed. Everything else — the budget, and how hard the runtime is asked
-to look — is a setting, and it is recorded alongside the test design.
+time: no randomness, no seed. Everything else — that number of states, and how hard the
+runtime is asked to look in each one — is a setting, and it is recorded alongside the test
+design.
 
 ## Using it
 
@@ -70,7 +71,7 @@ way to check one is to run it.
 | Visualize or edit the rule set | Out. A rule set is still JSON, which is hard to hand-write even for an engineer |
 | Record approvals | Out. Approval is committing the test design; expiry is the diff coming back non-empty. Git already does both |
 | A line-oriented rendering of the test design | Out of v1. The document carries what one needs, and that it does is measured |
-| A number standing in for coverage | Out, and it stays out. The only quantity Ruledger reports is how many places the budget stopped in front of |
+| A number standing in for coverage | Out, and it stays out. The only quantity Ruledger reports is how many places the walk stopped in front of for want of states to visit |
 
 The reasoning behind each line is in the thesis — see §6.5 and §6.6. What has to exist
 before v1 is finished — to prove the method, and to let someone experience it — is

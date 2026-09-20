@@ -176,12 +176,12 @@ namespace Ruledger.Cli
         // Where an input leads, by the number each walk gave it. Two numberings, said as
         // 'now' and as what it was: the same place has a different number in the two test
         // designs whenever the walk rejoined somewhere else, and that is itself the news.
-        // A branch the budget stopped in front of is that, and never an empty place.
+        // A branch the walk stopped in front of is that, and never an empty place.
         private static string Lands(Move move) =>
             move.Landings.Count is 0
                 ? "nowhere, the state being final"
                 : string.Join(" ", move.Landings.Select(static landing =>
-                    landing.To ?? "not reached inside the budget"));
+                    landing.To ?? "not reached before the walk stopped"));
 
         private static string Ending(TestDesignState state) =>
             state.IsTerminal ? "final " + (state.Result ?? "(no result)") : "not final";

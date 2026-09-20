@@ -10,13 +10,18 @@ a `rulealize/input/v1` carries, a draw as what a `rulealize/outcome/v1` carries.
 transcribed into a shape of its own, so a person stepping through a design by hand and
 Ruledger applying it again are reading the same thing.
 
+Ruledger produces one by walking the rule set: from the state the rule set starts in, take
+each legal input, carry on from where it lands, and write down every state not arrived at
+before, until the number of states it was given have been written down. **The walk** below
+means that, and `settings` holds that number.
+
 ## The whole of it
 
 ```json
 {
   "$schema": "ruledger/test-design/v1",
   "ruleSet": "reversi@1.0.0",
-  "settings": { "budget": 3000, "validationLimit": 10000, "outcomeLimit": 64 },
+  "settings": { "states": 3000, "candidates": 10000, "outcomes": 64 },
   "observed": ["board", "turn", "passes"],
   "collapsed": [],
   "unreached": 252,
@@ -29,20 +34,23 @@ Ruledger applying it again are reading the same thing.
 |---|---|
 | `$schema` | `ruledger/test-design/v1`, and a document without it is refused rather than guessed at |
 | `ruleSet` | what the rule set calls itself, as `id@version` |
-| `settings` | how the walk was told to go. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree |
-| `observed` | the state paths a position is compared on, in the order the rule set's `state.schema` declares them |
-| `collapsed` | the state paths dropped before comparing, in the same order |
-| `unreached` | how many landings the budget stopped in front of |
+| `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree |
+| `observed` | the state paths two positions have to agree on to be the same position, in the order the rule set's `state.schema` declares them |
+| `collapsed` | the state paths left out of that comparison because nothing observable reads them, in the same order |
+| `unreached` | how many landings the walk had no states left for: one per `"to": null` below |
 | `edits` | the choices a person made, and what became of each |
 | `states` | the states, in the order the walk first arrived at them |
 
 `observed` and `collapsed` together are every field the state declares. They are worked out
-from the rule set, not declared in it, and they are written down because a diff needs to
-know whether two designs were compared the same way.
+from the rule set, not declared in it. The walk compares positions on `observed` alone, so
+that it recognises a position it has already been in and writes it down once; comparing whole
+states instead would make an audit trail enough to tell two identical positions apart, and a
+rule set that keeps one would never be walked back into a position it had visited. Both lists
+are written down because a diff has to know whether two designs were compared the same way.
 
-`unreached` is the only quantity of its kind. It is a count of places the walk was standing
-in front of when it ran out, and there is no percentage, no coverage figure and no number
-standing in for how much of a rule set a design covers.
+`unreached` is the only quantity of its kind. It counts the times an input arrived somewhere
+the walk had not been with no states left to spend, and there is no percentage, no coverage
+figure and no number standing in for how much of a rule set a design covers.
 
 ## A state
 
@@ -64,7 +72,7 @@ standing in for how much of a rule set a design covers.
 | `by` | the input that first reached it, written `place(at: e6)`. Absent on `#0` |
 | `state` | the position itself, as a `rulealize/state/v1` document |
 | `evaluated` | how many candidates had their guard evaluated to find `moves` |
-| `truncated` | present and `true` only when the search for legal inputs stopped at `validationLimit` |
+| `truncated` | present and `true` only when the search for legal inputs stopped at `candidates` |
 | `terminal` | present only when the rules call this state final. It holds `result`, which may be `null` |
 | `moves` | every input that is legal here, in the order the runtime offered them |
 
@@ -99,7 +107,7 @@ Four shapes, and they mean four different things.
 | | |
 |---|---|
 | `"to": "#7"` | applying it settles the next state, and that state is `#7` |
-| `"to": null` | the budget stopped in front of it. **Not "it leads nowhere"** |
+| `"to": null` | the walk had no states left for it. **Not "it leads nowhere"** |
 | `"lands": [ ... ]` | the rules draw, so one input arrives in more than one place |
 | neither key | a move in a state the rules call final: offered, and not followed |
 
@@ -171,8 +179,8 @@ test design that could be wrong.
 **A choice that could not be taken stays in the file, with `carried` saying which of two
 ways it went missing.** It is never dropped, and it never falls back to the input the
 machine would have picked. The two ways are different enough to be worth telling apart: the
-state is still there and the input is not legal in it any more, or the walk did not reach a
-state of that name inside the budget.
+state is still there and the input is not legal in it any more, or the walk stopped before it
+reached a state of that name.
 
 ## Reading it as lines
 

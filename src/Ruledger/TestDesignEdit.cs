@@ -72,7 +72,7 @@ namespace Ruledger
         /// <summary>The state was reached and the input is not legal in it.</summary>
         NotLegal,
 
-        /// <summary>The walk did not reach a state of that name inside the budget.</summary>
+        /// <summary>The walk stopped before it reached a state of that name.</summary>
         NotReached,
     }
 

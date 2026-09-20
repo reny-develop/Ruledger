@@ -20,7 +20,7 @@ namespace Ruledger.Verify
         {
             TestDesignDiff diff = Fixture.Apply(Fixture.Walk("reversi", 3000), "reversi-swapped");
 
-            said.WriteLine($"reversi -> reversi-swapped at budget 3000: {diff.Common} states in both, "
+            said.WriteLine($"reversi -> reversi-swapped at 3000 states: {diff.Common} states in both, "
                 + $"{diff.Changed.Count} decided differently, {diff.Gone.Count} gone, {diff.Appeared.Count} new");
 
             Assert.Equal(3000, diff.Common);
@@ -44,7 +44,7 @@ namespace Ruledger.Verify
         {
             TestDesignDiff diff = Fixture.Apply(Fixture.Walk("reversi", 3000), "reversi-strict");
 
-            said.WriteLine($"reversi -> reversi-strict at budget 3000: {diff.Common} states in both, "
+            said.WriteLine($"reversi -> reversi-strict at 3000 states: {diff.Common} states in both, "
                 + $"{diff.Changed.Count} decided differently, {diff.Gone.Count} gone, {diff.Appeared.Count} new");
 
             Assert.Equal(1, diff.Common);
@@ -70,7 +70,7 @@ namespace Ruledger.Verify
 
             HashSet<string> was = [.. diff.Before.States.Select(Contents)];
 
-            said.WriteLine($"reversi -> reversi-counted at budget 3000: {diff.Common} states in both, "
+            said.WriteLine($"reversi -> reversi-counted at 3000 states: {diff.Common} states in both, "
                 + $"{diff.Changed.Count} decided differently, {diff.Gone.Count} gone, {diff.Appeared.Count} new; "
                 + $"not one of the new walk's states has the contents of an old one; "
                 + $"compared on {string.Join(", ", diff.After.Observed)}, was "
@@ -144,7 +144,7 @@ namespace Ruledger.Verify
             string first = Fixture.Walk(ruleSet, 300).ToJson();
             string second = Fixture.Walk(ruleSet, 300).ToJson();
 
-            said.WriteLine($"{ruleSet} at budget 300, walked twice: {first.Length} bytes both times, identical");
+            said.WriteLine($"{ruleSet} at 300 states, walked twice: {first.Length} bytes both times, identical");
 
             Assert.Equal(first, second);
         }
