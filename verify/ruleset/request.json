@@ -1,0 +1,39 @@
+{
+  // The approving half. One request, raised and then granted.
+  "id": "request",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Binding" },    { "plugin": "Rulealize.Plugin.Sequence" },
+    { "plugin": "Rulealize.Plugin.Comparison" }
+  ],
+
+  "state": {
+    "schema": {
+      "stage": { "op": "type.enum", "values": ["draft", "review", "granted", "denied"] },
+      "shift": { "op": "type.enum", "values": ["mon", "tue"], "nullable": true }
+    },
+    "initial": { "stage": "draft", "shift": null }
+  },
+
+  "inputs": {
+    "raise": {
+      "params": { "shift": { "domain": { "op": "seq.of", "of": ["mon", "tue"] } } },
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "draft" },
+      "effects": [
+        { "op": "state.set", "path": "shift", "value": "@shift" },
+        { "op": "state.set", "path": "stage", "value": "review" }
+      ]
+    },
+    "grant": {
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "review" },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "granted" } ]
+    }
+  },
+
+  "terminal": {
+    "when": { "op": "cmp.eq", "left": "$stage", "right": "granted" },
+    "result": "$stage"
+  }
+}

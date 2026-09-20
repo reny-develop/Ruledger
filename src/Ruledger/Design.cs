@@ -66,22 +66,48 @@ namespace Ruledger
         /// <param name="settings">How far to go. The default budget is three thousand states.</param>
         /// <returns>The design.</returns>
         /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
-        /// <exception cref="NotSupportedException">The rule set holds other rule sets.</exception>
-        public static Design Derive(RuleRuntime runtime, string ruleSet, WalkSettings? settings = null)
+        public static Design Derive(RuleRuntime runtime, string ruleSet, WalkSettings? settings = null) =>
+            Derive(runtime, ruleSet, null, settings);
+
+        /// <summary>Walks a rule set that holds others, and writes down what is observable along the way.</summary>
+        /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
+        /// <param name="ruleSet">The rule set, as text.</param>
+        /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
+        /// <param name="settings">How far to go. The default budget is three thousand states.</param>
+        /// <returns>The design.</returns>
+        /// <remarks>
+        /// Splitting a rule set into a composite and the parts it holds is a way of writing it,
+        /// not a different set of rules, so the design does not turn on which way it was
+        /// written: the composite is walked, exactly as the one document it stands for would
+        /// be. Only the names differ, because a composite offers a component's input under the
+        /// alias it gave it.
+        /// </remarks>
+        /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
+        /// <exception cref="InvalidOperationException">A rule set named in <c>uses</c> was not supplied.</exception>
+        public static Design Derive(
+            RuleRuntime runtime,
+            string ruleSet,
+            IReadOnlyDictionary<string, string>? components,
+            WalkSettings? settings = null)
         {
             ArgumentNullException.ThrowIfNull(runtime);
             ArgumentNullException.ThrowIfNull(ruleSet);
 
-            return Derive(runtime, ruleSet, settings, ObservationScan.Of(ruleSet));
+            return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components));
         }
 
         internal static Design Derive(
             RuleRuntime runtime,
             string ruleSet,
+            IReadOnlyDictionary<string, string>? components,
             WalkSettings? settings,
             ObservationScan observation)
         {
-            Walker walker = new(runtime.CreateContext(ruleSet), observation, settings ?? new WalkSettings());
+            Walker walker = new(
+                runtime.CreateContext(ruleSet, components),
+                observation,
+                settings ?? new WalkSettings());
+
             return walker.Walk();
         }
 
@@ -228,7 +254,7 @@ namespace Ruledger
                 foreach (string field in observation.Observed)
                 {
                     key.Append(field).Append('=');
-                    if (data.TryGetProperty(field, out JsonElement value))
+                    if (Locate(data, field) is JsonElement value)
                     {
                         Canonical(value, key);
                     }
@@ -237,6 +263,30 @@ namespace Ruledger
                 }
 
                 return key.ToString();
+            }
+
+            // A composite keeps each component's state under its alias, and keeps it as a state
+            // document rather than as bare fields, so `req.stage` is one step through the alias
+            // and one through what the component wrote.
+            private static JsonElement? Locate(JsonElement data, string field)
+            {
+                JsonElement node = data;
+                foreach (string segment in field.Split('.'))
+                {
+                    if (node.ValueKind == JsonValueKind.Object
+                        && node.TryGetProperty("ruleSet", out _)
+                        && node.TryGetProperty("data", out JsonElement held))
+                    {
+                        node = held;
+                    }
+
+                    if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(segment, out node))
+                    {
+                        return null;
+                    }
+                }
+
+                return node;
             }
 
             private sealed record Step(Landing Landing, string State, string By);

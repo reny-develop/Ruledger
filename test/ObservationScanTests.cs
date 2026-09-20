@@ -105,26 +105,6 @@ namespace Ruledger.Tests
             Assert.Empty(scan.Collapsed);
         }
 
-        // Its states are the product of its components, and what its guards read is in
-        // documents it does not carry. Saying so beats answering with a set that is quietly
-        // missing fields.
-        [Fact]
-        public void ARuleSetThatHoldsOthersIsRefused()
-        {
-            const string ruleSet = """
-                {
-                  "id": "composite", "version": "1.0.0",
-                  "uses": [ { "ruleSet": "Rulealize.RuleSet.Request", "version": "^1.0", "as": "req" } ],
-                  "state": { "schema": {}, "initial": {} },
-                  "inputs": {}
-                }
-                """;
-
-            NotSupportedException refusal = Assert.Throws<NotSupportedException>(() => ObservationScan.Of(ruleSet));
-
-            Assert.Contains("Walk the components", refusal.Message, StringComparison.Ordinal);
-        }
-
         private static ObservationScan Scan(string ruleSet) => ObservationScan.Of(Read(ruleSet));
 
         private static string Read(string ruleSet) =>

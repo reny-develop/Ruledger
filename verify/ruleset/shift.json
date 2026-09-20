@@ -1,0 +1,45 @@
+{
+  // The roster half. Two shifts, each filled by at most one person.
+  "id": "shift",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Binding" },    { "plugin": "Rulealize.Plugin.Sequence" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Logic" },
+    { "plugin": "Rulealize.Plugin.Branch" }
+  ],
+
+  "state": {
+    "schema": {
+      "mon": { "op": "type.enum", "values": ["ann"], "nullable": true },
+      "tue": { "op": "type.enum", "values": ["ann"], "nullable": true }
+    },
+    "initial": { "mon": null, "tue": null }
+  },
+
+  "inputs": {
+    "assign": {
+      "params": { "slot": { "domain": { "op": "seq.of", "of": ["mon", "tue"] } } },
+      "when": {
+        "op": "logic.or",
+        "any": [
+          { "op": "logic.and", "all": [
+            { "op": "cmp.eq", "left": "@slot", "right": "mon" },
+            { "op": "cmp.isNull", "value": "$mon" } ] },
+          { "op": "logic.and", "all": [
+            { "op": "cmp.eq", "left": "@slot", "right": "tue" },
+            { "op": "cmp.isNull", "value": "$tue" } ] }
+        ]
+      },
+      "effects": [
+        { "op": "state.set", "path": "mon", "value": { "op": "branch.if",
+          "cond": { "op": "cmp.eq", "left": "@slot", "right": "mon" },
+          "then": "ann", "else": "$mon" } },
+        { "op": "state.set", "path": "tue", "value": { "op": "branch.if",
+          "cond": { "op": "cmp.eq", "left": "@slot", "right": "tue" },
+          "then": "ann", "else": "$tue" } }
+      ]
+    }
+  }
+}

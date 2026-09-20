@@ -42,12 +42,14 @@ namespace Ruledger
         };
 
         private readonly List<string> declared = [];
+        private readonly Dictionary<string, List<string>> aliases = new(StringComparer.Ordinal);
         private readonly Dictionary<string, JsonElement> definitions = new(StringComparer.Ordinal);
         private readonly HashSet<string> reached = new(StringComparer.Ordinal);
 
-        private ObservationScan(JsonElement root, bool whole = false)
+        private ObservationScan(JsonElement root, IReadOnlyDictionary<string, string>? components, bool whole = false)
         {
             ReadSchema(root);
+            ReadComponents(root, components);
             ReadDefinitions(root);
 
             if (whole)
@@ -72,6 +74,8 @@ namespace Ruledger
         /// <summary>Gets the state fields an observation depends on, in the order the schema declares them.</summary>
         public IReadOnlyList<string> Observed { get; }
 
+        internal IReadOnlyList<string> Declared => this.declared;
+
         /// <summary>Gets the state fields nothing observable depends on, in the order the schema declares them.</summary>
         /// <remarks>
         /// These are dropped before two states are compared. They are still carried and still
@@ -82,35 +86,19 @@ namespace Ruledger
 
         /// <summary>Scans a rule set document.</summary>
         /// <param name="ruleSet">The document, as text. Comments and trailing commas are accepted.</param>
+        /// <param name="components">
+        /// The document of every rule set reachable through <c>uses</c>, by identifier, as
+        /// <c>RuleRuntime.CreateContext</c> takes them. A rule set that holds none needs none.
+        /// </param>
         /// <returns>What the document's observations depend on.</returns>
         /// <exception cref="JsonException">The text is not JSON.</exception>
-        /// <exception cref="NotSupportedException">The rule set holds other rule sets.</exception>
-        public static ObservationScan Of(string ruleSet)
+        /// <exception cref="InvalidOperationException">A rule set named in <c>uses</c> was not supplied.</exception>
+        public static ObservationScan Of(string ruleSet, IReadOnlyDictionary<string, string>? components = null)
         {
             ArgumentNullException.ThrowIfNull(ruleSet);
 
             using JsonDocument document = JsonDocument.Parse(ruleSet, ReaderOptions);
-            Refuse(document.RootElement);
-            return new ObservationScan(document.RootElement);
-        }
-
-        // A rule set that holds others reads their state through their guards, which are in
-        // documents this has not been given, so the answer would be a set with fields missing
-        // from it and no sign that any were. Refusing says so; collapsing a field that turns
-        // out to matter does not.
-        //
-        // There is a better reason to walk the parts anyway: a composite's reachable set is
-        // the product of its components, and whatever a walk of one component found holds
-        // inside every composite that holds it.
-        internal static void Refuse(JsonElement root)
-        {
-            if (root.TryGetProperty("uses", out JsonElement uses) && uses.ValueKind == JsonValueKind.Array && uses.GetArrayLength() > 0)
-            {
-                throw new NotSupportedException(
-                    "This rule set holds others, and a rule set that holds others is not walked: "
-                    + "its reachable states are the product of its components, and what its guards "
-                    + "read lives in documents this one does not carry. Walk the components.");
-            }
+            return new ObservationScan(document.RootElement, components);
         }
 
         // Every declared field observed, which is to say nothing collapsed. Not offered to a
@@ -120,7 +108,7 @@ namespace Ruledger
             ArgumentNullException.ThrowIfNull(ruleSet);
 
             using JsonDocument document = JsonDocument.Parse(ruleSet, ReaderOptions);
-            return new ObservationScan(document.RootElement, whole: true);
+            return new ObservationScan(document.RootElement, null, whole: true);
         }
 
         private static string? Operation(JsonElement node) =>
@@ -174,12 +162,25 @@ namespace Ruledger
                         }
                     }
 
+                    if (input.Value.TryGetProperty("fires", out JsonElement fires)
+                        && fires.ValueKind == JsonValueKind.Array)
+                    {
+                        yield return fires;
+                    }
+
                     if (input.Value.TryGetProperty("effects", out JsonElement written)
                         && written.ValueKind == JsonValueKind.Array)
                     {
                         effects.AddRange(written.EnumerateArray());
                     }
                 }
+            }
+
+            // What a composite adds is where it narrows a component's input and where one of
+            // its own inputs drives several. Both decide what is legal, so both are read.
+            if (root.TryGetProperty("held", out JsonElement held) && held.ValueKind == JsonValueKind.Object)
+            {
+                yield return held;
             }
 
             if (root.TryGetProperty("terminal", out JsonElement terminal))
@@ -208,6 +209,51 @@ namespace Ruledger
             foreach (JsonProperty field in schema.EnumerateObject())
             {
                 this.declared.Add(field.Name);
+            }
+        }
+
+        // A rule set that holds others keeps each component's state under the alias it gave it,
+        // so its fields are that component's fields with the alias in front. Which of them an
+        // observation depends on is the component's own answer, scanned the same way — which is
+        // what keeps splitting a rule set from changing the design it produces.
+        //
+        // Where the composite reads a component at all — through the guard neither half could
+        // write — it reads it as a record, and no attempt is made here to work out which key.
+        // The whole component is kept instead, which is the same over-approximating direction
+        // the rest of this takes.
+        private void ReadComponents(JsonElement root, IReadOnlyDictionary<string, string>? components)
+        {
+            if (!root.TryGetProperty("uses", out JsonElement uses) || uses.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
+
+            foreach (JsonElement use in uses.EnumerateArray())
+            {
+                if (!use.TryGetProperty("ruleSet", out JsonElement named) || named.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                string identifier = named.GetString() ?? string.Empty;
+                string alias = use.TryGetProperty("as", out JsonElement given) && given.ValueKind == JsonValueKind.String
+                    ? given.GetString() ?? identifier
+                    : identifier;
+
+                if (components is null || !components.TryGetValue(identifier, out string? document))
+                {
+                    throw new InvalidOperationException(
+                        $"This rule set holds '{identifier}', and what its guards read is in that document. "
+                        + "Supply it, or what comes back is a set of fields with some of them missing and "
+                        + "no sign that any were.");
+                }
+
+                ObservationScan component = Of(document, components);
+                List<string> held = [.. component.Declared.Select(field => alias + "." + field)];
+
+                this.aliases[alias] = held;
+                this.declared.AddRange(held);
+                this.reached.UnionWith(component.Observed.Select(field => alias + "." + field));
             }
         }
 
@@ -401,9 +447,18 @@ namespace Ruledger
 
         private void Add(HashSet<string> into, string path)
         {
-            if (Field(path) is string field)
+            int end = path.IndexOfAny(['.', '[']);
+            string head = end < 0 ? path : path[..end];
+
+            if (this.aliases.TryGetValue(head, out List<string>? component))
             {
-                into.Add(field);
+                into.UnionWith(component);
+                return;
+            }
+
+            if (this.declared.Contains(head))
+            {
+                into.Add(head);
             }
         }
 

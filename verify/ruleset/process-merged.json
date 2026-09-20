@@ -1,0 +1,88 @@
+{
+  // The same process as `process.json`, written as one rule set instead of two held by a
+  // third. Splitting a rule set is a way of writing it, not a different set of rules, so the
+  // two must be designed the same: the same states, the same legal inputs in each, the same
+  // endings. Only the names differ — a composite offers a component's input under its alias,
+  // so `raise` here is `req.raise` there.
+  "id": "process-merged",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Binding" },    { "plugin": "Rulealize.Plugin.Sequence" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Logic" },
+    { "plugin": "Rulealize.Plugin.Branch" }
+  ],
+
+  "state": {
+    "schema": {
+      "stage": { "op": "type.enum", "values": ["draft", "review", "granted", "denied"] },
+      "shift": { "op": "type.enum", "values": ["mon", "tue"], "nullable": true },
+      "mon": { "op": "type.enum", "values": ["ann"], "nullable": true },
+      "tue": { "op": "type.enum", "values": ["ann"], "nullable": true }
+    },
+    "initial": { "stage": "draft", "shift": null, "mon": null, "tue": null }
+  },
+
+  "inputs": {
+    "raise": {
+      "params": { "shift": { "domain": { "op": "seq.of", "of": ["mon", "tue"] } } },
+      "when": {
+        "op": "logic.and",
+        "all": [
+          // The request half's own guard.
+          { "op": "cmp.eq", "left": "$stage", "right": "draft" },
+          // The guard neither half could write: not for a shift already filled.
+          { "op": "cmp.isNull", "value": { "op": "branch.if",
+            "cond": { "op": "cmp.eq", "left": "@shift", "right": "mon" },
+            "then": "$mon", "else": "$tue" } }
+        ]
+      },
+      "effects": [
+        { "op": "state.set", "path": "shift", "value": "@shift" },
+        { "op": "state.set", "path": "stage", "value": "review" }
+      ]
+    },
+
+    "grant": {
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "review" },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "granted" } ]
+    },
+
+    "assign": {
+      "params": { "slot": { "domain": { "op": "seq.of", "of": ["mon", "tue"] } } },
+      "when": {
+        "op": "logic.and",
+        "all": [
+          // The roster half's own guard.
+          { "op": "logic.or", "any": [
+            { "op": "logic.and", "all": [
+              { "op": "cmp.eq", "left": "@slot", "right": "mon" },
+              { "op": "cmp.isNull", "value": "$mon" } ] },
+            { "op": "logic.and", "all": [
+              { "op": "cmp.eq", "left": "@slot", "right": "tue" },
+              { "op": "cmp.isNull", "value": "$tue" } ] } ] },
+          // The guard neither half could write: only as the consequence of a grant, and only
+          // for the shift that was granted.
+          { "op": "cmp.eq", "left": "$stage", "right": "granted" },
+          { "op": "cmp.eq", "left": "@slot", "right": "$shift" }
+        ]
+      },
+      "effects": [
+        { "op": "state.set", "path": "mon", "value": { "op": "branch.if",
+          "cond": { "op": "cmp.eq", "left": "@slot", "right": "mon" },
+          "then": "ann", "else": "$mon" } },
+        { "op": "state.set", "path": "tue", "value": { "op": "branch.if",
+          "cond": { "op": "cmp.eq", "left": "@slot", "right": "tue" },
+          "then": "ann", "else": "$tue" } }
+      ]
+    }
+  },
+
+  "terminal": {
+    "when": { "op": "logic.and", "all": [
+      { "op": "logic.not", "value": { "op": "cmp.isNull", "value": "$mon" } },
+      { "op": "logic.not", "value": { "op": "cmp.isNull", "value": "$tue" } } ] },
+    "result": "filled"
+  }
+}

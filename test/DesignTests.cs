@@ -134,8 +134,8 @@ namespace Ruledger.Tests
             string text = Vocabulary.Read("roster-trail");
             WalkSettings settings = new(Budget: 3000);
 
-            Design collapsed = Design.Derive(Vocabulary.Runtime, text, settings, ObservationScan.Of(text));
-            Design whole = Design.Derive(Vocabulary.Runtime, text, settings, ObservationScan.Whole(text));
+            Design collapsed = Design.Derive(Vocabulary.Runtime, text, null, settings, ObservationScan.Of(text));
+            Design whole = Design.Derive(Vocabulary.Runtime, text, null, settings, ObservationScan.Whole(text));
 
             Assert.Equal(0, Rejoins(whole));
             Assert.True(Rejoins(collapsed) > 2000);
@@ -149,7 +149,7 @@ namespace Ruledger.Tests
         {
             string text = Vocabulary.Read("roster-trail");
             Design whole = Design.Derive(
-                Vocabulary.Runtime, text, new WalkSettings(Budget: 3000), ObservationScan.Whole(text));
+                Vocabulary.Runtime, text, null, new WalkSettings(Budget: 3000), ObservationScan.Whole(text));
 
             Assert.True(whole.States.Count(state => state.IsTerminal) > 900);
         }

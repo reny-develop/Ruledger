@@ -1,0 +1,46 @@
+{
+  // The process: the two halves, and the guard neither of them could write. An assignment
+  // only ever happens as the consequence of a grant, and a request is only raised for a
+  // shift the roster has not filled.
+  "id": "process",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Binding" },    { "plugin": "Rulealize.Plugin.Sequence" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Logic" },
+    { "plugin": "Rulealize.Plugin.Branch" },     { "plugin": "Rulealize.Plugin.Record" }
+  ],
+
+  "uses": [
+    { "ruleSet": "request", "version": "^1.0", "as": "req" },
+    { "ruleSet": "shift",   "version": "^1.0", "as": "roster" }
+  ],
+
+  "held": {
+    "req": {
+      "raise": {
+        "when": { "op": "cmp.isNull",
+                  "value": { "op": "rec.at", "record": "$roster", "key": "@shift" } }
+      }
+    },
+    "roster": {
+      "assign": {
+        "when": { "op": "logic.and", "all": [
+          { "op": "cmp.eq", "right": "granted",
+            "left": { "op": "rec.at", "record": "$req", "key": "stage" } },
+          { "op": "cmp.eq", "left": "@slot",
+            "right": { "op": "rec.at", "record": "$req", "key": "shift" } } ] }
+      }
+    }
+  },
+
+  "terminal": {
+    "when": { "op": "logic.and", "all": [
+      { "op": "logic.not", "value": { "op": "cmp.isNull",
+        "value": { "op": "rec.at", "record": "$roster", "key": "mon" } } },
+      { "op": "logic.not", "value": { "op": "cmp.isNull",
+        "value": { "op": "rec.at", "record": "$roster", "key": "tue" } } } ] },
+    "result": "filled"
+  }
+}
