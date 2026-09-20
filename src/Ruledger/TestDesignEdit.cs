@@ -10,7 +10,7 @@ namespace Ruledger
     /// where the choice is not the one somebody wanted to look at, they replace the choice and
     /// the machine works out the rest — which inputs are legal from there, whether it ends,
     /// where each one goes. Writing an observation by hand would make it the one thing in a
-    /// design that can be wrong.
+    /// test design that can be wrong.
     /// </para>
     /// <para>
     /// It names a state and an input, and neither of those is anything about the rule set's
@@ -19,13 +19,19 @@ namespace Ruledger
     /// arrived, and adding a field leaves every route through it spelled the same.
     /// </para>
     /// </remarks>
-    public sealed class DesignEdit
+    public sealed class TestDesignEdit
     {
-        /// <summary>Initializes a new instance of the <see cref="DesignEdit"/> class.</summary>
-        /// <param name="state">The name of the state to choose from, such as <c>#0</c>.</param>
+        /// <summary>Initializes a new instance of the <see cref="TestDesignEdit"/> class.</summary>
+        /// <param name="state">
+        /// The name of the state to choose from, either written out as how the walk arrives
+        /// there — <c>#0 + submit</c> — or as the number that state has in the test design
+        /// being read, such as <c>#4</c>. The number names a state only inside the one it was
+        /// read from, which is why a test design writes its choices out the long way: so that
+        /// they survive the rule set changing.
+        /// </param>
         /// <param name="input">The name of the input to take first.</param>
         /// <param name="arguments">What to call it with, by parameter name. An input without parameters takes none.</param>
-        public DesignEdit(string state, string input, IReadOnlyDictionary<string, string>? arguments = null)
+        public TestDesignEdit(string state, string input, IReadOnlyDictionary<string, string>? arguments = null)
         {
             ArgumentNullException.ThrowIfNull(state);
             ArgumentNullException.ThrowIfNull(input);
@@ -35,7 +41,7 @@ namespace Ruledger
             Arguments = arguments ?? new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
-        /// <summary>Gets the name of the state this chooses from.</summary>
+        /// <summary>Gets the name of the state this chooses from, either way of writing it.</summary>
         public string State { get; }
 
         /// <summary>Gets the name of the input to take first.</summary>
@@ -51,7 +57,7 @@ namespace Ruledger
                 : $"{State}: {Input}({string.Join(", ", Arguments.Select(static argument => $"{argument.Key}: {argument.Value}"))})";
     }
 
-    /// <summary>What became of an edit when the design was derived again.</summary>
+    /// <summary>What became of an edit when the test design was derived again.</summary>
     /// <remarks>
     /// A choice that could not be carried is reported and never quietly dropped back to what
     /// the machine would have picked. There are two ways to lose one, and they are different
@@ -73,5 +79,11 @@ namespace Ruledger
     /// <summary>One edit and what became of it.</summary>
     /// <param name="Edit">The choice a person made.</param>
     /// <param name="Outcome">Whether it was taken, and if not, why not.</param>
-    public sealed record EditResult(DesignEdit Edit, EditOutcome Outcome);
+    /// <param name="Name">
+    /// The name of the state it was found in, spelled out as how the walk arrived there, or
+    /// null where no state of that name was walked. A choice can be written against the number
+    /// a state has in the test design being read, and that number is a name only inside it;
+    /// spelling it out is what carries the choice into the next version.
+    /// </param>
+    public sealed record EditResult(TestDesignEdit Edit, EditOutcome Outcome, string? Name = null);
 }

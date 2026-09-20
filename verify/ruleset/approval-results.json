@@ -1,0 +1,77 @@
+{
+  "$schema": "rulealize/ruleset/v1",
+  "id": "approval",
+  "version": "1.1.0",
+
+  // approval with the two results renamed. Four states, two of them final, and the
+  // rename is observable in both of those and nowhere else — which is the smallest
+  // interesting diff there is, and small enough to write the whole of it into a test.
+  //
+  // The seventh plugin is the rename: saying what a stage is called at the end takes a
+  // branch, where reading the stage back out did not.
+
+  // The smallest rule set that is still worth reading, and the one the README walks through.
+  //
+  // It exists to answer the first question a reader has — what does a rule set look like? —
+  // without asking them to hold sixty-four squares in their head first. Six plugins, three
+  // inputs, two state fields.
+  //
+  // The one thing here that is not the shortest way to say it is `reason`. `reject` could
+  // have been three inputs with no parameters at all; making it one input with a domain of
+  // three is what shows a reader where legal moves come from, because `GetValidInputs`
+  // returns four things in the review stage and only one of them is `approve`.
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema", "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.State",      "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Comparison", "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Logic",      "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Sequence",   "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Binding",    "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Branch",     "version": "^1.0" }
+  ],
+
+  "state": {
+    "schema": {
+      "stage":  { "op": "type.enum", "values": ["draft", "review", "approved", "rejected"] },
+      "reason": { "op": "type.enum", "values": ["scope", "cost", "timing"], "nullable": true }
+    },
+    "initial": { "stage": "draft", "reason": null }
+  },
+
+  "inputs": {
+    "submit": {
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "draft" },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "review" } ]
+    },
+
+    "approve": {
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "review" },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "approved" } ]
+    },
+
+    "reject": {
+      "params": { "reason": { "domain": { "op": "seq.of", "of": ["scope", "cost", "timing"] } } },
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "review" },
+      "effects": [
+        { "op": "state.set", "path": "stage",  "value": "rejected" },
+        { "op": "state.set", "path": "reason", "value": "@reason" }
+      ]
+    }
+  },
+
+  "terminal": {
+    "when": {
+      "op": "logic.or",
+      "any": [
+        { "op": "cmp.eq", "left": "$stage", "right": "approved" },
+        { "op": "cmp.eq", "left": "$stage", "right": "rejected" }
+      ]
+    },
+    "result": {
+      "op": "branch.match",
+      "value": "$stage",
+      "cases": { "approved": "passed", "rejected": "declined" }
+    }
+  }
+}

@@ -16,6 +16,8 @@ Nothing reads the sibling repositories at run time either. Rule-Derived Test Des
 
 Where a measurement does not bite on the material that is here, write material where it does, and say in the document why it exists. `process` has seven states and never returns to one, so nothing about collapsing shows there; `seats` was written because of that.
 
+A measurement about a change to a rule set needs the rule set both ways, so some of these come in pairs and the pair is the fixture: `reversi-swapped`, `reversi-strict` and `reversi-counted` are each one line away from `reversi`, and `approval-results` and `roster-seniors` from theirs. A later version raises `version` and says in its comment which line moved and why that line.
+
 ## Measure before writing it down
 Reasoning from the code gives a hypothesis. Build the fixture, run it, and only then write the claim into `doc/v1.md` or the sibling repository. When a measurement contradicts something already written, say so plainly and correct it — the project exists because unmeasured judgement is unreliable, and an unmeasured claim in its own documents gives that away.
 
@@ -27,17 +29,17 @@ No new terms. Proper nouns are Ruledger and Rulealize; everything else is ordina
 
 In Japanese, never write 文書 for a rule set. Japanese uses the same word for the JSON and for the prose about it, so a reader has to work out which one is meant every time. A rule set is ルールセット, a state is 状態, an input is 入力. 状態パス is a place inside a state (`assigned`); 状態の名前 is how the walk arrived (`#2 = #1 + release(月)`). English keeps "document", which is what Rulealize calls the four it reads.
 
-## What a design may say
+## What a test design may say
 Three things are observable about a state and only those are written down: which inputs are legal, whether it is final and with what result, and where each legal input leads. A legal input is its name, its arguments and whose it is.
 
-The one place a person writes is a choice — from this state, take this input first. Everything downstream of it is worked out again. An observation written by hand would be the only thing in a design that can be wrong, so there is nowhere to write one.
+The one place a person writes is a choice — from this state, take this input first. Everything downstream of it is worked out again. An observation written by hand would be the only thing in a test design that can be wrong, so there is nowhere to write one.
 
 No number that stands in for quality. Ruledger reports what a budget did not reach and nothing else of the kind; a percentage would invite exactly the misreading the method was written against.
 
 Nothing is hidden when it fails. A choice that could not be carried is reported and never dropped back to what the machine would have picked, and a place the walk did not reach is reported as that rather than as nothing being there. There should be no code path that quietly reverts to a default.
 
 ## The walk
-Deterministic: the same rule set and the same settings visit the same states in the same order. No randomness, no seed, and nothing that depends on the enumeration order of a hash table. Everything that is not derived from the rule set is a setting and travels with the design.
+Deterministic: the same rule set and the same settings visit the same states in the same order. No randomness, no seed, and nothing that depends on the enumeration order of a hash table. Everything that is not derived from the rule set is a setting and travels with the test design.
 
 Written on an explicit stack. The depth of a walk is a budget away from unbounded — a rule set holding a history never returns to a state it has been in — and recursion breaks at three thousand frames.
 
@@ -49,4 +51,4 @@ The runtime answers everything about behaviour; the document is read only to wor
 Where the shape of the document cannot settle a question, keep the field rather than collapse it. Keeping too much costs rejoining; collapsing too much hides something observable.
 
 ## Building and testing
-`dotnet test test/Ruledger.Tests.csproj`. The vocabularies come in as NuGet packages and land beside the test assembly, which is how the runtime finds them; the plugin repositories are never built from source for this. The suite takes about three minutes, most of it Reversi and blackjack walking three thousand states.
+`dotnet test test/Ruledger.Tests.csproj`. The vocabularies come in as NuGet packages and land beside the test assembly, which is how the runtime finds them; the plugin repositories are never built from source for this. The suite takes three and a half to four minutes: Reversi and blackjack walking three thousand states, and the roster measurement deriving its test design twenty times over to stack twenty choices the way a person makes them.

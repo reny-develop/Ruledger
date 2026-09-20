@@ -9,9 +9,9 @@ namespace Ruledger
     /// legal, whether it is final and with what result, and where each legal input leads.
     /// Nothing else is written down, because nothing else can be checked.
     /// </remarks>
-    public sealed class DesignState
+    public sealed class TestDesignState
     {
-        internal DesignState(
+        internal TestDesignState(
             string name,
             string? from,
             string? by,
@@ -156,7 +156,7 @@ namespace Ruledger
         /// <summary>Gets the name of the state this lands in, or null when the budget stopped before it.</summary>
         /// <remarks>
         /// Null is not "there is nothing there". It is the one honest thing to say about a
-        /// state the walk never reached, and it is counted in <see cref="Design.Unreached"/>.
+        /// state the walk never reached, and it is counted in <see cref="TestDesign.Unreached"/>.
         /// </remarks>
         public string? To { get; internal set; }
 

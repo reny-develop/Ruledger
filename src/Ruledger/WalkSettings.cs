@@ -6,8 +6,8 @@ namespace Ruledger
     /// <summary>How far a walk goes, and how hard it looks on the way.</summary>
     /// <remarks>
     /// <para>
-    /// None of this is derived from the rule set, so all of it travels with the design it
-    /// produced. Two designs are only comparable when they were walked the same way — the
+    /// None of this is derived from the rule set, so all of it travels with the test design
+    /// it produced. Two of them are only comparable when they were walked the same way — the
     /// same states in the same order is what makes a difference between them a difference
     /// the rules made.
     /// </para>

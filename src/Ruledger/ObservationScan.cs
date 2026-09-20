@@ -132,7 +132,7 @@ namespace Ruledger
         // A legal input is its name, its arguments and whose it is, so all three of the keys
         // that build one are here. `actor` is not a fourth thing that can be observed; it is
         // part of the first, and leaving it out would collapse a field only it reads while
-        // the design went on printing two different movers for the one state.
+        // the test design went on printing two different movers for the one state.
         private static IEnumerable<JsonElement> ObservationPoints(JsonElement root, List<JsonElement> effects)
         {
             if (root.TryGetProperty("inputs", out JsonElement inputs)
@@ -215,7 +215,7 @@ namespace Ruledger
         // A rule set that holds others keeps each component's state under the alias it gave it,
         // so its fields are that component's fields with the alias in front. Which of them an
         // observation depends on is the component's own answer, scanned the same way — which is
-        // what keeps splitting a rule set from changing the design it produces.
+        // what keeps splitting a rule set from changing the test design it produces.
         //
         // Where the composite reads a component at all — through the guard neither half could
         // write — it reads it as a record, and no attempt is made here to work out which key.
@@ -376,7 +376,7 @@ namespace Ruledger
             // A composite reads a component as a record, so this is how it reads one field of
             // one: the alias says which component and the key says which field. Read whole, it
             // would keep every field the component has, and the same rules written as one
-            // document would collapse the ones nothing observes — the design would then turn
+            // document would collapse the ones nothing observes — the test design would then turn
             // on whether somebody split the rule set. Where the key is computed there is no
             // one field to name, and the component is kept entire.
             if (operation == "rec.at" && Narrow(node) is string field)

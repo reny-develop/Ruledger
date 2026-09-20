@@ -77,7 +77,7 @@ namespace Ruledger.Tests
 
         // A legal input is its name, its arguments and whose it is, so whatever decides the
         // mover is observed like whatever decides legality. Collapsing a field only `actor`
-        // reads would merge two states the design goes on printing two movers for.
+        // reads would merge two states the test design goes on printing two movers for.
         [Fact]
         public void WhoseMoveItIsIsPartOfWhatIsLegal()
         {

@@ -3,7 +3,7 @@
 
 namespace Ruledger.Tests
 {
-    public class DesignTests
+    public class TestDesignTests
     {
         // Same rule set, same settings, same states in the same order. Everything a diff
         // between two designs says rests on this.
@@ -13,8 +13,8 @@ namespace Ruledger.Tests
         [InlineData("blackjack")]
         public void TheSameWalkTwiceIsTheSameWalk(string ruleSet)
         {
-            Design first = Derive(ruleSet, 300);
-            Design second = Derive(ruleSet, 300);
+            TestDesign first = Derive(ruleSet, 300);
+            TestDesign second = Derive(ruleSet, 300);
 
             Assert.Equal(Sketch(first), Sketch(second));
         }
@@ -22,7 +22,7 @@ namespace Ruledger.Tests
         [Fact]
         public void EverythingObservableAboutAStateIsWrittenDown()
         {
-            DesignState opening = Derive("reversi", 300).States[0];
+            TestDesignState opening = Derive("reversi", 300).States[0];
 
             Assert.Equal(["place(at: e6)", "place(at: f5)", "place(at: c4)", "place(at: d3)"],
                 opening.Moves.Select(move => move.Text));
@@ -37,7 +37,7 @@ namespace Ruledger.Tests
         [Fact]
         public void AStateIsNamedAfterHowTheWalkGotThere()
         {
-            Design design = Derive("reversi", 300);
+            TestDesign design = Derive("reversi", 300);
 
             Assert.Equal("#0", design.States[0].Name);
             Assert.Null(design.States[0].From);
@@ -51,7 +51,7 @@ namespace Ruledger.Tests
         [Fact]
         public void WalkingToTheEndObservesTheResults()
         {
-            Design design = Derive("reversi", 3000);
+            TestDesign design = Derive("reversi", 3000);
 
             Assert.Equal(["black", "draw", "white"],
                 design.States.Where(state => state.IsTerminal).Select(state => state.Result).Distinct().Order());
@@ -60,7 +60,7 @@ namespace Ruledger.Tests
         [Fact]
         public void AShortRuleSetIsWalkedOut()
         {
-            Design design = Derive("approval", 3000);
+            TestDesign design = Derive("approval", 3000);
 
             Assert.Equal(4, design.States.Count);
             Assert.Equal(0, design.Unreached);
@@ -73,7 +73,7 @@ namespace Ruledger.Tests
         [Fact]
         public void WhatTheBudgetDidNotReachIsSaidSo()
         {
-            Design design = Derive("reversi", 300);
+            TestDesign design = Derive("reversi", 300);
 
             Assert.Equal(300, design.States.Count);
             Assert.Equal(
@@ -87,7 +87,7 @@ namespace Ruledger.Tests
         [Fact]
         public void AnInputThatDrawsLandsInMoreThanOnePlace()
         {
-            Design design = Derive("blackjack", 300);
+            TestDesign design = Derive("blackjack", 300);
 
             Move drawn = design.States
                 .SelectMany(state => state.Moves)
@@ -100,7 +100,7 @@ namespace Ruledger.Tests
         [Fact]
         public void AnInputThatDrawsNothingLandsInOne()
         {
-            Design design = Derive("reversi", 300);
+            TestDesign design = Derive("reversi", 300);
 
             Assert.All(
                 design.States.Where(state => !state.IsTerminal).SelectMany(state => state.Moves),
@@ -118,7 +118,7 @@ namespace Ruledger.Tests
         [Fact]
         public void AFinalStateKeepsItsMovesAndLeadsNowhere()
         {
-            DesignState ending = Derive("reversi", 3000).States.First(state => state.IsTerminal);
+            TestDesignState ending = Derive("reversi", 3000).States.First(state => state.IsTerminal);
 
             Assert.NotNull(ending.Result);
             Assert.All(ending.Moves, move => Assert.Empty(move.Landings));
@@ -134,8 +134,8 @@ namespace Ruledger.Tests
             string text = Vocabulary.Read("roster-trail");
             WalkSettings settings = new(Budget: 3000);
 
-            Design collapsed = Design.Derive(Vocabulary.Runtime, text, null, settings, ObservationScan.Of(text));
-            Design whole = Design.Derive(Vocabulary.Runtime, text, null, settings, ObservationScan.Whole(text));
+            TestDesign collapsed = TestDesign.Derive(Vocabulary.Runtime, text, null, settings, ObservationScan.Of(text));
+            TestDesign whole = TestDesign.Derive(Vocabulary.Runtime, text, null, settings, ObservationScan.Whole(text));
 
             Assert.Equal(0, Rejoins(whole));
             Assert.True(Rejoins(collapsed) > 2000);
@@ -148,23 +148,23 @@ namespace Ruledger.Tests
         public void WithoutCollapsingAWalkStillReachesAnEnding()
         {
             string text = Vocabulary.Read("roster-trail");
-            Design whole = Design.Derive(
+            TestDesign whole = TestDesign.Derive(
                 Vocabulary.Runtime, text, null, new WalkSettings(Budget: 3000), ObservationScan.Whole(text));
 
             Assert.True(whole.States.Count(state => state.IsTerminal) > 900);
         }
 
-        private static Design Derive(string ruleSet, int budget) =>
-            Design.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(Budget: budget));
+        private static TestDesign Derive(string ruleSet, int budget) =>
+            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(Budget: budget));
 
-        private static int Rejoins(Design design) =>
+        private static int Rejoins(TestDesign design) =>
             design.States.Sum(state => state.Moves.Sum(move => move.Landings.Count(landing => landing.To is not null)))
                 - (design.States.Count - 1);
 
-        private static IEnumerable<string?> Results(Design design) =>
+        private static IEnumerable<string?> Results(TestDesign design) =>
             design.States.Where(state => state.IsTerminal).Select(state => state.Result).Distinct();
 
-        private static string Sketch(Design design) =>
+        private static string Sketch(TestDesign design) =>
             string.Join('\n', design.States.Select(state =>
                 $"{state} {state.Result} {state.Evaluated} " +
                 string.Join(' ', state.Moves.Select(move => $"{move.Text}->{string.Join(',', move.Landings)}"))));

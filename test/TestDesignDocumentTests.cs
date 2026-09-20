@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace Ruledger.Tests
 {
     /// <summary>The design as it is written down, read and committed.</summary>
-    public class DesignDocumentTests
+    public class TestDesignDocumentTests
     {
         // Same rule set, same settings, the same bytes. Committing a design and running the
         // tool again rests on this: a diff that is not empty has to mean the rules moved.
@@ -27,7 +27,7 @@ namespace Ruledger.Tests
         {
             string written = Derive(ruleSet).ToJson();
 
-            Assert.Equal(written, Design.FromJson(written).ToJson());
+            Assert.Equal(written, TestDesign.FromJson(written).ToJson());
         }
 
         [Fact]
@@ -35,7 +35,7 @@ namespace Ruledger.Tests
         {
             JsonElement design = Parse(Derive("approval").ToJson());
 
-            Assert.Equal("ruledger/design/v1", design.GetProperty("$schema").GetString());
+            Assert.Equal("ruledger/test-design/v1", design.GetProperty("$schema").GetString());
             Assert.Equal("approval@1.0.0", design.GetProperty("ruleSet").GetString());
             Assert.Equal(300, design.GetProperty("settings").GetProperty("budget").GetInt32());
             Assert.Equal(["stage"], design.GetProperty("observed").EnumerateArray().Select(field => field.GetString()));
@@ -100,7 +100,7 @@ namespace Ruledger.Tests
         [Fact]
         public void ALandingTheBudgetStoppedBeforeIsWrittenAsNothingReached()
         {
-            JsonElement design = Parse(Design
+            JsonElement design = Parse(TestDesign
                 .Derive(Vocabulary.Runtime, Vocabulary.Read("reversi"), new WalkSettings(Budget: 20))
                 .ToJson());
 
@@ -145,8 +145,8 @@ namespace Ruledger.Tests
                 states.EnumerateArray().Select(state => state.GetProperty("name").GetString()));
         }
 
-        private static Design Derive(string ruleSet) =>
-            Design.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(Budget: 300));
+        private static TestDesign Derive(string ruleSet) =>
+            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(Budget: 300));
 
         private static JsonElement Parse(string design) => JsonDocument.Parse(design).RootElement.Clone();
     }

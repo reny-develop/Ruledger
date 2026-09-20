@@ -24,14 +24,14 @@ namespace Ruledger
     /// makes a difference between two designs a difference the rules made.
     /// </para>
     /// </remarks>
-    public sealed class Design
+    public sealed class TestDesign
     {
-        internal Design(
+        internal TestDesign(
             string ruleSet,
             WalkSettings settings,
             IReadOnlyList<string> observed,
             IReadOnlyList<string> collapsed,
-            IReadOnlyList<DesignState> states,
+            IReadOnlyList<TestDesignState> states,
             IReadOnlyList<EditResult> edits,
             int unreached)
         {
@@ -57,7 +57,7 @@ namespace Ruledger
         public IReadOnlyList<string> Collapsed { get; }
 
         /// <summary>Gets the states, in the order they were first arrived at.</summary>
-        public IReadOnlyList<DesignState> States { get; }
+        public IReadOnlyList<TestDesignState> States { get; }
 
         /// <summary>Gets the choices a person made, and what became of each.</summary>
         /// <remarks>
@@ -78,9 +78,9 @@ namespace Ruledger
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
         /// <param name="ruleSet">The rule set, as text.</param>
         /// <param name="settings">How far to go. The default budget is three thousand states.</param>
-        /// <returns>The design.</returns>
+        /// <returns>The test design.</returns>
         /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
-        public static Design Derive(RuleRuntime runtime, string ruleSet, WalkSettings? settings = null) =>
+        public static TestDesign Derive(RuleRuntime runtime, string ruleSet, WalkSettings? settings = null) =>
             Derive(runtime, ruleSet, null, settings);
 
         /// <summary>Walks a rule set that holds others, and writes down what is observable along the way.</summary>
@@ -89,22 +89,22 @@ namespace Ruledger
         /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
         /// <param name="settings">How far to go. The default budget is three thousand states.</param>
         /// <param name="edits">Choices a person made, which the walk takes first where it can.</param>
-        /// <returns>The design.</returns>
+        /// <returns>The test design.</returns>
         /// <remarks>
         /// Splitting a rule set into a composite and the parts it holds is a way of writing it,
-        /// not a different set of rules, so the design does not turn on which way it was
+        /// not a different set of rules, so the test design does not turn on which way it was
         /// written: the composite is walked, exactly as the one document it stands for would
         /// be. Only the names differ, because a composite offers a component's input under the
         /// alias it gave it.
         /// </remarks>
         /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
         /// <exception cref="InvalidOperationException">A rule set named in <c>uses</c> was not supplied.</exception>
-        public static Design Derive(
+        public static TestDesign Derive(
             RuleRuntime runtime,
             string ruleSet,
             IReadOnlyDictionary<string, string>? components,
             WalkSettings? settings = null,
-            IReadOnlyList<DesignEdit>? edits = null)
+            IReadOnlyList<TestDesignEdit>? edits = null)
         {
             ArgumentNullException.ThrowIfNull(runtime);
             ArgumentNullException.ThrowIfNull(ruleSet);
@@ -112,29 +112,29 @@ namespace Ruledger
             return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components), edits);
         }
 
-        /// <summary>Reads a design back.</summary>
-        /// <param name="design">A <c>ruledger/design/v1</c> document.</param>
+        /// <summary>Reads a test design back.</summary>
+        /// <param name="testDesign">A <c>ruledger/test-design/v1</c> document.</param>
         /// <returns>What it says.</returns>
         /// <exception cref="JsonException">The text is not JSON.</exception>
-        /// <exception cref="InvalidOperationException">The text is not a design document.</exception>
-        public static Design FromJson(string design) => DesignDocument.Read(design);
+        /// <exception cref="InvalidOperationException">The text is not a test design.</exception>
+        public static TestDesign FromJson(string testDesign) => TestDesignDocument.Read(testDesign);
 
-        /// <summary>Writes this design as a <c>ruledger/design/v1</c> document.</summary>
+        /// <summary>Writes this test design as a <c>ruledger/test-design/v1</c> document.</summary>
         /// <returns>The document.</returns>
         /// <remarks>
-        /// This is the design — what a person reads against what they meant, what they put
+        /// This is the test design — what a person reads against what they meant, what they put
         /// their choices into, and what gets committed. A line-oriented rendering of it is a
         /// view of this, and not a second copy of it.
         /// </remarks>
-        public string ToJson() => DesignDocument.Write(this);
+        public string ToJson() => TestDesignDocument.Write(this);
 
-        internal static Design Derive(
+        internal static TestDesign Derive(
             RuleRuntime runtime,
             string ruleSet,
             IReadOnlyDictionary<string, string>? components,
             WalkSettings? settings,
             ObservationScan observation,
-            IReadOnlyList<DesignEdit>? edits = null)
+            IReadOnlyList<TestDesignEdit>? edits = null)
         {
             Walker walker = new(
                 runtime.CreateContext(ruleSet, components),
@@ -149,15 +149,20 @@ namespace Ruledger
             RuleContext rules,
             ObservationScan observation,
             WalkSettings settings,
-            IReadOnlyList<DesignEdit> edits)
+            IReadOnlyList<TestDesignEdit> edits)
         {
             private readonly Dictionary<string, string> seen = new(StringComparer.Ordinal);
             private readonly List<Entry> order = [];
             private readonly Stack<Entry> descending = new();
-            private readonly Dictionary<DesignEdit, EditOutcome> outcomes = [];
+            private readonly Dictionary<TestDesignEdit, EditResult> outcomes = [];
+
+            // How the walk got where it is standing, which is the name of the state it is
+            // standing in. It grows and shrinks with the descent, so it costs the depth of the
+            // walk and not its size.
+            private readonly StringBuilder here = new("#0");
             private int unreached;
 
-            public Design Walk()
+            public TestDesign Walk()
             {
                 Arrive(rules.InitialState, null, null);
 
@@ -169,59 +174,25 @@ namespace Ruledger
                     Entry entry = this.descending.Peek();
                     if (entry.Next >= entry.Ahead.Count)
                     {
-                        this.descending.Pop();
+                        this.here.Length = this.descending.Pop().Back;
                         continue;
                     }
 
                     Step step = entry.Ahead[entry.Next++];
-                    step.Landing.To = Arrive(step.State, entry.Name, step.By);
+                    step.Landing.To = Arrive(step.State, entry.Name, step);
                 }
 
-                return new Design(
+                return new TestDesign(
                     rules.RuleSet,
                     settings,
                     observation.Observed,
                     observation.Collapsed,
                     [.. this.order.Select(static entry => entry.Close())],
-                    [.. edits.Select(edit => new EditResult(
-                        edit,
-                        this.outcomes.TryGetValue(edit, out EditOutcome outcome) ? outcome : EditOutcome.NotReached))],
+                    [.. edits.Select(edit =>
+                        this.outcomes.TryGetValue(edit, out EditResult? result)
+                            ? result
+                            : new EditResult(edit, EditOutcome.NotReached))],
                     this.unreached);
-            }
-
-            // Written out with the keys of every object in order, because whether two states are
-            // the same is not a question about the order a writer happened to use.
-            private static void Canonical(JsonElement value, StringBuilder into)
-            {
-                switch (value.ValueKind)
-                {
-                    case JsonValueKind.Object:
-                        into.Append('{');
-                        foreach (JsonProperty property in value.EnumerateObject().OrderBy(static p => p.Name, StringComparer.Ordinal))
-                        {
-                            into.Append(property.Name).Append(':');
-                            Canonical(property.Value, into);
-                            into.Append(',');
-                        }
-
-                        into.Append('}');
-                        return;
-
-                    case JsonValueKind.Array:
-                        into.Append('[');
-                        foreach (JsonElement item in value.EnumerateArray())
-                        {
-                            Canonical(item, into);
-                            into.Append(',');
-                        }
-
-                        into.Append(']');
-                        return;
-
-                    default:
-                        into.Append(value.GetRawText());
-                        return;
-                }
             }
 
             // A composite keeps each component's state under its alias, and keeps it as a state
@@ -248,14 +219,14 @@ namespace Ruledger
                 return node;
             }
 
-            private static bool Matches(DesignEdit edit, Move move) =>
+            private static bool Matches(TestDesignEdit edit, Move move) =>
                 string.Equals(edit.Input, move.Input, StringComparison.Ordinal)
                 && edit.Arguments.Count == move.Arguments.Count
                 && edit.Arguments.All(argument =>
                     move.Arguments.TryGetValue(argument.Key, out string? value)
                     && string.Equals(value, argument.Value, StringComparison.Ordinal));
 
-            private string? Arrive(string state, string? from, string? by)
+            private string? Arrive(string state, string? from, Step? step)
             {
                 string key = Key(state);
                 if (this.seen.TryGetValue(key, out string? seenAs))
@@ -270,11 +241,19 @@ namespace Ruledger
                 }
 
                 // Numbered on arrival rather than on departure, so that a state's name says
-                // where the walk found it and the first thing #0 leads to is #1.
+                // where the walk found it and the first thing #0 leads to is #1. The number is
+                // the short way to write the name; how the walk arrived is the whole of it, and
+                // it is the only one of the two that means the same thing in the next version.
                 string name = "#" + this.order.Count;
                 this.seen[key] = name;
 
-                Entry entry = new(name, from, by, state);
+                int back = this.here.Length;
+                if (step is not null)
+                {
+                    this.here.Append(" + ").Append(Route.Step(step.By, step.Landing.Draw));
+                }
+
+                Entry entry = new(name, from, step?.By, state) { Back = back };
                 this.order.Add(entry);
 
                 TerminalStatus terminal = rules.GetTerminalStatus(state);
@@ -285,7 +264,7 @@ namespace Ruledger
                 entry.Evaluated = legal.Evaluated;
                 entry.Truncated = legal.Truncated;
 
-                List<List<Step>> routes = [];
+                List<List<Step>> onward = [];
                 foreach (ValidInput input in legal)
                 {
                     string document = input.ToInputDocument(rules.RuleSet);
@@ -315,10 +294,10 @@ namespace Ruledger
                         document,
                         landings));
 
-                    routes.Add(ahead);
+                    onward.Add(ahead);
                 }
 
-                entry.Ahead.AddRange(Ordered(name, entry.Moves, routes));
+                entry.Ahead.AddRange(Ordered(name, entry.Moves, onward));
                 this.descending.Push(entry);
                 return name;
             }
@@ -326,13 +305,19 @@ namespace Ruledger
             // The one place a person's writing reaches. Which inputs are legal here is an
             // observation and keeps the order the runtime offered them in; which one the walk
             // goes down first is a choice, and that is what an edit replaces.
-            private IEnumerable<Step> Ordered(string name, List<Move> moves, List<List<Step>> routes)
+            private IEnumerable<Step> Ordered(string name, List<Move> moves, List<List<Step>> onward)
             {
                 List<int> taken = [];
-                foreach (DesignEdit edit in edits.Where(edit => string.Equals(edit.State, name, StringComparison.Ordinal)))
+                foreach (TestDesignEdit edit in edits.Where(edit => Names(edit, name)))
                 {
                     int found = moves.FindIndex(move => Matches(edit, move));
-                    this.outcomes[edit] = found < 0 ? EditOutcome.NotLegal : EditOutcome.Carried;
+
+                    // Written back with the name spelled out, whichever way it was written
+                    // here: the number is only a name inside the test design it was read from.
+                    this.outcomes[edit] = new EditResult(
+                        edit,
+                        found < 0 ? EditOutcome.NotLegal : EditOutcome.Carried,
+                        this.here.ToString());
 
                     if (found >= 0 && !taken.Contains(found))
                     {
@@ -341,9 +326,17 @@ namespace Ruledger
                 }
 
                 return taken
-                    .Concat(Enumerable.Range(0, routes.Count).Where(index => !taken.Contains(index)))
-                    .SelectMany(index => routes[index]);
+                    .Concat(Enumerable.Range(0, onward.Count).Where(index => !taken.Contains(index)))
+                    .SelectMany(index => onward[index]);
             }
+
+            // A state has two names and this answers to either. The number is the one a person
+            // reads off the test design in front of them; how the walk arrived is the one that still
+            // means the same place after the rule set changes, and it is what a choice read out
+            // of an earlier test design is written with.
+            private bool Names(TestDesignEdit edit, string name) =>
+                string.Equals(edit.State, name, StringComparison.Ordinal)
+                || this.here.Equals(edit.State.AsSpan());
 
             // Two states are the same state when they agree on everything an observation can
             // depend on. Anything else a rule set keeps — an audit trail, a move history — is
@@ -363,7 +356,7 @@ namespace Ruledger
                     key.Append(field).Append('=');
                     if (Locate(data, field) is JsonElement value)
                     {
-                        Canonical(value, key);
+                        Canonical.Write(value, key);
                     }
 
                     key.Append(';');
@@ -388,11 +381,14 @@ namespace Ruledger
 
                 public int Next { get; set; }
 
+                /// <summary>How much of the walk's route belongs to the state this was reached from.</summary>
+                public int Back { get; init; }
+
                 public List<Move> Moves { get; } = [];
 
                 public List<Step> Ahead { get; } = [];
 
-                public DesignState Close() =>
+                public TestDesignState Close() =>
                     new(name, from, by, state, IsTerminal, Result, Evaluated, Truncated, Moves);
             }
         }

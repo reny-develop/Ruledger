@@ -3,11 +3,11 @@
 
 namespace Ruledger.Tests
 {
-    /// <summary>A rule set split into parts is the same rule set, so it is designed the same.</summary>
+    /// <summary>A rule set split into parts is the same rule set, so its test design is the same.</summary>
     /// <remarks>
     /// A composite and the one document it stands for are two ways of writing one set of rules.
     /// Nothing about which one was chosen belongs in a test design, so these hold the two
-    /// designs against each other. Only the names differ: a composite offers a component's
+    /// test designs against each other. Only the names differ: a composite offers a component's
     /// input under the alias it gave it, so `raise` in the merged document is `req.raise` here.
     /// </remarks>
     public class CompositionTests
@@ -25,8 +25,8 @@ namespace Ruledger.Tests
         public void SplittingARuleSetDoesNotChangeTheStatesItIsDesignedOver(
             string composite, string merged, string[] components)
         {
-            Design split = Derive(composite, components);
-            Design whole = Derive(merged, []);
+            TestDesign split = Derive(composite, components);
+            TestDesign whole = Derive(merged, []);
 
             Assert.Equal(whole.States.Count, split.States.Count);
             Assert.Equal(whole.Unreached, split.Unreached);
@@ -45,8 +45,8 @@ namespace Ruledger.Tests
         public void SplittingARuleSetDoesNotChangeTheEndings(
             string composite, string merged, string[] components)
         {
-            Design split = Derive(composite, components);
-            Design whole = Derive(merged, []);
+            TestDesign split = Derive(composite, components);
+            TestDesign whole = Derive(merged, []);
 
             Assert.Equal(
                 whole.States.Where(state => state.IsTerminal).Select(state => state.Result),
@@ -116,16 +116,16 @@ namespace Ruledger.Tests
         private static IReadOnlyDictionary<string, string> Held(string[] components) =>
             components.ToDictionary(static name => name, Vocabulary.Read, StringComparer.Ordinal);
 
-        private static Design Derive(string ruleSet, string[] components) =>
-            Design.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), Held(components), new WalkSettings(Budget: 300));
+        private static TestDesign Derive(string ruleSet, string[] components) =>
+            TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), Held(components), new WalkSettings(Budget: 300));
 
-        private static int Rejoins(Design design) =>
+        private static int Rejoins(TestDesign design) =>
             design.States.Sum(state => state.Moves.Sum(move => move.Landings.Count(landing => landing.To is not null)))
                 - (design.States.Count - 1);
 
         // Everything observable about every state, with the alias a composite puts in front of
         // a component's input taken off, because that is the one thing the two do differ on.
-        private static string Sketch(Design design) =>
+        private static string Sketch(TestDesign design) =>
             string.Join('\n', design.States.Select(state =>
                 $"{state.Name} {state.IsTerminal} {state.Result} {state.Evaluated} "
                 + string.Join(

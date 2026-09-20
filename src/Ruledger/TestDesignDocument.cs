@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Ruledger
 {
-    /// <summary>The <c>ruledger/design/v1</c> document: a design, written down.</summary>
+    /// <summary>The <c>ruledger/test-design/v1</c> document: a test design, written down.</summary>
     /// <remarks>
     /// <para>
     /// A fourth document beside the three Rulealize already reads, and made of them: a state
@@ -28,14 +28,24 @@ namespace Ruledger
     /// offered and not followed.
     /// </para>
     /// </remarks>
-    internal static class DesignDocument
+    internal static class TestDesignDocument
     {
-        private const string Schema = "ruledger/design/v1";
+        private const string Schema = "ruledger/test-design/v1";
 
-        public static string Write(Design design)
+        public static string Write(TestDesign design)
         {
             using MemoryStream buffer = new();
-            using (Utf8JsonWriter writer = new(buffer, new JsonWriterOptions { Indented = true }))
+
+            // Written for somebody to read. The escaping JSON defaults to is there for a
+            // document that will be pasted into a web page, and it would spell the name of
+            // every state `#0 + submit` and every card `♠` on the way to a file.
+            JsonWriterOptions options = new()
+            {
+                Indented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            };
+
+            using (Utf8JsonWriter writer = new(buffer, options))
             {
                 writer.WriteStartObject();
                 writer.WriteString("$schema", Schema);
@@ -54,7 +64,7 @@ namespace Ruledger
                 WriteEdits(writer, design.Edits);
 
                 writer.WriteStartArray("states");
-                foreach (DesignState state in design.States)
+                foreach (TestDesignState state in design.States)
                 {
                     WriteState(writer, state);
                 }
@@ -66,11 +76,11 @@ namespace Ruledger
             return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
         }
 
-        public static Design Read(string design)
+        public static TestDesign Read(string testDesign)
         {
-            ArgumentNullException.ThrowIfNull(design);
+            ArgumentNullException.ThrowIfNull(testDesign);
 
-            using JsonDocument document = JsonDocument.Parse(design);
+            using JsonDocument document = JsonDocument.Parse(testDesign);
             JsonElement root = document.RootElement;
 
             if (!root.TryGetProperty("$schema", out JsonElement schema)
@@ -81,7 +91,7 @@ namespace Ruledger
 
             JsonElement settings = root.GetProperty("settings");
 
-            return new Design(
+            return new TestDesign(
                 root.GetProperty("ruleSet").GetString() ?? string.Empty,
                 new WalkSettings(
                     settings.GetProperty("budget").GetInt32(),
@@ -92,15 +102,6 @@ namespace Ruledger
                 [.. root.GetProperty("states").EnumerateArray().Select(ReadState)],
                 [.. root.GetProperty("edits").EnumerateArray().Select(ReadEdit)],
                 root.GetProperty("unreached").GetInt32());
-        }
-
-        /// <summary>Reads only the choices out of a design, to carry them onto another one.</summary>
-        public static IReadOnlyList<DesignEdit> ReadEdits(string design)
-        {
-            ArgumentNullException.ThrowIfNull(design);
-
-            using JsonDocument document = JsonDocument.Parse(design);
-            return [.. document.RootElement.GetProperty("edits").EnumerateArray().Select(ReadEdit).Select(result => result.Edit)];
         }
 
         private static void WriteNames(Utf8JsonWriter writer, string name, IReadOnlyList<string> names)
@@ -120,7 +121,12 @@ namespace Ruledger
             foreach (EditResult result in edits)
             {
                 writer.WriteStartObject();
-                writer.WriteString("state", result.Edit.State);
+
+                // Spelled out as how the walk arrives there, which is the name that still means
+                // this state in the next version. A choice written against the number a state
+                // has here comes back out written the long way; one the walk never found is
+                // left as it was written, because there is nothing truer to say about it.
+                writer.WriteString("state", result.Name ?? result.Edit.State);
                 writer.WriteString("input", result.Edit.Input);
                 WriteArguments(writer, result.Edit.Arguments);
 
@@ -139,7 +145,7 @@ namespace Ruledger
             writer.WriteEndArray();
         }
 
-        private static void WriteState(Utf8JsonWriter writer, DesignState state)
+        private static void WriteState(Utf8JsonWriter writer, TestDesignState state)
         {
             writer.WriteStartObject();
             writer.WriteString("name", state.Name);
@@ -261,22 +267,25 @@ namespace Ruledger
         private static IReadOnlyList<string> ReadNames(JsonElement root, string name) =>
             [.. root.GetProperty(name).EnumerateArray().Select(static field => field.GetString() ?? string.Empty)];
 
-        private static EditResult ReadEdit(JsonElement edit) =>
-            new(
-                new DesignEdit(
-                    edit.GetProperty("state").GetString() ?? string.Empty,
-                    edit.GetProperty("input").GetString() ?? string.Empty,
-                    ReadArguments(edit)),
-                edit.TryGetProperty("carried", out JsonElement carried)
-                    ? carried.GetString() switch
-                    {
-                        "yes" => EditOutcome.Carried,
-                        "not legal here" => EditOutcome.NotLegal,
-                        _ => EditOutcome.NotReached,
-                    }
-                    : EditOutcome.Carried);
+        private static EditResult ReadEdit(JsonElement edit)
+        {
+            string state = edit.GetProperty("state").GetString() ?? string.Empty;
+            EditOutcome outcome = edit.TryGetProperty("carried", out JsonElement carried)
+                ? carried.GetString() switch
+                {
+                    "yes" => EditOutcome.Carried,
+                    "not legal here" => EditOutcome.NotLegal,
+                    _ => EditOutcome.NotReached,
+                }
+                : EditOutcome.Carried;
 
-        private static DesignState ReadState(JsonElement state) =>
+            return new EditResult(
+                new TestDesignEdit(state, edit.GetProperty("input").GetString() ?? string.Empty, ReadArguments(edit)),
+                outcome,
+                outcome == EditOutcome.NotReached ? null : state);
+        }
+
+        private static TestDesignState ReadState(JsonElement state) =>
             new(
                 state.GetProperty("name").GetString() ?? string.Empty,
                 state.TryGetProperty("from", out JsonElement from) ? from.GetString() : null,
