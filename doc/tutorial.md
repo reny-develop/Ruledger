@@ -376,4 +376,5 @@ dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"
 ```
 
 which walks the measured rule sets, prints what it found, and fails if any of it has moved.
-It is wired to run on every commit. Nothing here is a figure somebody wrote down once.
+Nothing here is a figure somebody wrote down once, and the way to check one is to run it
+yourself.

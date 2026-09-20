@@ -58,4 +58,6 @@ Two suites, and they answer different questions.
 
 The vocabularies come in as NuGet packages and land beside the test assemblies, which is how the runtime finds them; the plugin repositories are never built from source for this.
 
+**There is no build server, on purpose** (`doc/v1.md`). The measurements are what makes a number a fact, and nothing runs them for you: run them yourself before committing anything that could move one, and when one has moved, measure again and write down what it now is rather than restoring the old number.
+
 The twenty choices the carry-over measurements are about are fixed in `verify/choice/`, not rebuilt each run. Stacking them — one at a time, each read off the design the ones before it produced — is how they were arrived at and it is written in the file; applying all twenty to one walk reaches the same design, which is why the file is enough.

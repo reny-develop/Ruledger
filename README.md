@@ -53,8 +53,9 @@ dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"
 ```
 
 55 measurements, about four minutes. They walk the rule sets in `verify/ruleset/`, print what
-they found, and fail if any of it has moved. They are wired to run on every commit. Nothing
-about this project is a figure somebody wrote down once.
+they found, and fail if any of it has moved. Nothing about this project is a figure somebody
+wrote down once: the numbers in these documents are the numbers that command prints, and the
+way to check one is to run it.
 
 `test/` holds the unit tests, which are a different question and take two seconds.
 
@@ -82,9 +83,9 @@ positions are compared on, writes the test design down, applies one to a later v
 carries the developer's edits across. The command line tool does all three of those from a
 shell. The measurements all run.
 
-Not done: the build server has not run yet, and nothing is published, so `dotnet tool install`
-above is what will work rather than what works today. Publication happens when v1 is finished
-and not before. The scope is settled and written down in [doc/v1.md](doc/v1.md).
+Not done: nothing is published, so `dotnet tool install` above is what will work rather than
+what works today. Publication happens when v1 is finished and not before. The scope is settled
+and written down in [doc/v1.md](doc/v1.md).
 
 The tool is C#: it needs the Rulealize runtime, and reading the rule set statically is part of
 the same job, not a separate program in another language.
