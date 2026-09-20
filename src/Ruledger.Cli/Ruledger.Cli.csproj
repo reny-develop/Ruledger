@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RootNamespace>Ruledger.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1605</WarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    The one thing v1 publishes. The library beside it is not packable and is not meant to be:
+    what Ruledger offers is a command, and a published API would be a second surface to keep
+    still. The package still carries the .Cli suffix the ecosystem uses, because the package
+    identifier and the project it holds may not be the same name.
+  -->
+  <PropertyGroup>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>ruledger</ToolCommandName>
+    <PackageId>Ruledger.Cli</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Reny</Authors>
+    <Description>Walks a Rulealize rule set and writes down, for every state it visits, everything that can be observed there: which inputs are legal, whether it is final and with what result, and where each legal input leads. Applying that test design to a later version of the rule set is the diff, and the choices a person made are carried across it.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/reny-develop/Ruledger</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!--
+    The runtime, for the same two calls the walk is made of, and for what a document says it
+    holds. Reading `uses` through Rulealize rather than out of the JSON here is the same
+    decision Rulealize.Cli made: a second reading of it would eventually disagree with the
+    one that compiles the document, and the way it would show is this tool handing over a
+    set of components the runtime then refuses.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Rulealize" Version="0.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ruledger\Ruledger.csproj" />
+  </ItemGroup>
+
+  <!--
+    So that what the tool prints can be held against what the documents say it prints. A
+    command is a class here rather than a script for that reason: the exit code and the
+    lines are the whole of the interface, and both are checked.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Ruledger.Tests" />
+  </ItemGroup>
+
+</Project>

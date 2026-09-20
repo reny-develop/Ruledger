@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\Ruledger\Ruledger.csproj" />
+    <ProjectReference Include="..\src\Ruledger.Cli\Ruledger.Cli.csproj" />
   </ItemGroup>
 
   <!--

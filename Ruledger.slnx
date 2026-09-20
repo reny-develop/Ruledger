@@ -6,5 +6,6 @@
     <File Path="doc/v1.md" />
   </Folder>
   <Project Path="src/Ruledger/Ruledger.csproj" />
+  <Project Path="src/Ruledger.Cli/Ruledger.Cli.csproj" />
   <Project Path="test/Ruledger.Tests.csproj" />
 </Solution>
