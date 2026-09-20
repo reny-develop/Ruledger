@@ -1,7 +1,7 @@
 ## Project
 Ruledger implements [Rule-Derived Test Design](https://github.com/reny-develop/rule-derived-test-design) on top of [Rulealize](https://github.com/reny-develop/Rulealize). It walks a rule set and writes down, for every state it visits, everything that can be observed there.
 
-One C# class library (`src/Ruledger/`, `net10.0`, nullable + implicit usings, a missing XML comment is an error), an xUnit suite in `test/`, and `verify/` for the material the measurements run against. The command line tool is not written yet.
+One C# class library (`src/Ruledger/`, `net10.0`, nullable + implicit usings, a missing XML comment is an error), the `dotnet tool` in `src/Ruledger.Cli/`, an xUnit suite in `test/` for the units, and `verify/` for the measurements and the material they run against.
 
 `doc/v1.md` decides what is in scope, what the acceptance conditions are and what order things are built in. Read it before changing anything, and check a change against it afterwards. **It is written in Japanese and is deleted when v1 lands**, along with the thesis and the verification record in the sibling repository — readers get proof and experience by running Ruledger, so the two READMEs have to carry whatever must survive. Publication happens at v1 and not before, and this file will need rewriting when that day comes.
 
@@ -51,4 +51,11 @@ The runtime answers everything about behaviour; the document is read only to wor
 Where the shape of the document cannot settle a question, keep the field rather than collapse it. Keeping too much costs rejoining; collapsing too much hides something observable.
 
 ## Building and testing
-`dotnet test test/Ruledger.Tests.csproj`. The vocabularies come in as NuGet packages and land beside the test assembly, which is how the runtime finds them; the plugin repositories are never built from source for this. The suite takes three and a half to four minutes: Reversi and blackjack walking three thousand states, and the roster measurement deriving its test design twenty times over to stack twenty choices the way a person makes them.
+Two suites, and they answer different questions.
+
+- `dotnet test test/Ruledger.Tests.csproj` — the units, and the command line tool's output and exit codes. Two seconds. A change that breaks one of these broke a member.
+- `dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"` — the measurements. Fifty-five of them, about four minutes, and the log is the report: each one prints what it found and fails if the number has moved. A change that breaks one of these moved a number somebody else is relying on, and the fix is to measure again and write down what it now is.
+
+The vocabularies come in as NuGet packages and land beside the test assemblies, which is how the runtime finds them; the plugin repositories are never built from source for this.
+
+The twenty choices the carry-over measurements are about are fixed in `verify/choice/`, not rebuilt each run. Stacking them — one at a time, each read off the design the ones before it produced — is how they were arrived at and it is written in the file; applying all twenty to one walk reaches the same design, which is why the file is enough.
