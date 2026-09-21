@@ -73,20 +73,22 @@ way to check one is to run it.
 | A line-oriented rendering of the test design | Out of v1. The document carries what one needs, and that it does is measured |
 | A number standing in for coverage | Out, and it stays out. The only quantity Ruledger reports is how many places the walk stopped in front of for want of states to visit |
 
-The reasoning behind each line is in the thesis — see §6.5 and §6.6. What has to exist
-before v1 is finished — to prove the method, and to let someone experience it — is
-[doc/v1.md](doc/v1.md).
+Every "out" above is a decision rather than a gap, and the reason is in the row. Two of
+them are worth saying twice. A line-oriented view of a test design is left out because the
+document already carries what one needs — measured, not asserted. A coverage number is left
+out and stays out, because a number standing in for quality is the thing this method was
+written against; how many places the walk stopped in front of is a count of places, and it
+is the only quantity reported.
 
 ## Status
 
-Being written, and close. The library walks a rule set, works out by itself which state two
-positions are compared on, writes the test design down, applies one to a later version and
-carries the developer's edits across. The command line tool does all three of those from a
-shell. The measurements all run.
+v1 is done. The library walks a rule set, works out by itself which state two positions are
+compared on, writes the test design down, applies one to a later version and carries the
+developer's edits across. The command line tool does all of that from a shell. The
+measurements all run.
 
-Not done: nothing is published, so `dotnet tool install` above is what will work rather than
-what works today. Publication happens when v1 is finished and not before. The scope is settled
-and written down in [doc/v1.md](doc/v1.md).
+Not published yet, so `dotnet tool install` above is what will work rather than what works
+today.
 
 The tool is C#: it needs the Rulealize runtime, and reading the rule set statically is part of
 the same job, not a separate program in another language.

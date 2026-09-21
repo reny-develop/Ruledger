@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The measurements. Everything the Rule-Derived Test Design thesis claims about Ruledger is
+    The measurements. Everything Rule-Derived Test Design claims about Ruledger is
     a number, and every one of those numbers comes out of a run of this project: `dotnet test
     verify/Ruledger.Verify.csproj` prints them and fails if any of them has moved.
 

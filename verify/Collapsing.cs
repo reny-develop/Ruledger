@@ -5,7 +5,7 @@ namespace Ruledger.Verify
 {
     /// <summary>Which state a position is compared on, and what happens without it.</summary>
     /// <remarks>
-    /// The one thing the thesis needed that had to be built: working out mechanically, from
+    /// The one thing the method needed that had to be built: working out mechanically, from
     /// the rule set, which state fields an observation can depend on. Two measurements — that
     /// it is worked out and not declared, and that a walk which skips it never comes back to
     /// a position it has been in.

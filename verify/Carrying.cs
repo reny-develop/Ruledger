@@ -152,9 +152,10 @@ namespace Ruledger.Verify
         }
 
         // The control for the settings, which is the one thing about a walk that is not
-        // derived from the rule set. The thesis argues that a diff and a carry hold under
-        // other settings because both versions are walked the same way; this measures one
-        // other setting rather than leaving it argued. Same change, same shape of answer.
+        // derived from the rule set. That a diff and a carry hold under other settings was
+        // argued and not measured — both versions are walked the same way, so they visit the
+        // same states in the same order — and this measures one other setting rather than
+        // leaving it argued. Same change, same shape of answer.
         [Fact]
         public void ADifferentSettingGivesTheSameKindOfAnswer()
         {
