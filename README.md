@@ -85,8 +85,8 @@ is the only quantity reported.
 v1 is done and published. The library walks a rule set, works out by itself which state two
 positions are compared on, writes the test design down, applies one to a later version and
 carries the developer's edits across. The command line tool does all of that from a shell.
-The measurements all run. `Ruledger.Cli` 1.0.0 is on nuget.org, so the two install lines
-above are what works rather than what will.
+The measurements all run. `Ruledger.Cli` is on nuget.org, so the two install lines above
+are what works rather than what will.
 
 The tool is C#: it needs the Rulealize runtime, and reading the rule set statically is part of
 the same job, not a separate program in another language.

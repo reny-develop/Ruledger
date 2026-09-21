@@ -5,7 +5,9 @@ One C# class library (`src/Ruledger/`, `net10.0`, nullable + implicit usings, a 
 
 **v1 has landed and its scaffolding is gone.** `doc/v1.md` here, and the thesis and the verification record in the sibling repository, were working documents written in Japanese for the author; they were deleted on purpose, because a reader gets proof and experience by running Ruledger rather than by reading a claim that it works. Three documents are what must now stay true, and each is read on its own: the README says what is in and what is out, `doc/tutorial.md` is the half hour that shows what the tool is like, `doc/test-design.md` is the form of the document it writes. Every console transcript in them was captured from a run and has to stay a true prefix of what the command prints today.
 
-`Ruledger.Cli` 1.0.0 is on nuget.org, which is the whole of what is published — the library ships inside the tool and has no package of its own. A release raises `<Version>` in `src/Ruledger.Cli/Ruledger.Cli.csproj` and nothing else carries the number; nuget.org never lets a version be reused, so it is decided before the push and not after.
+`Ruledger.Cli` on nuget.org is the whole of what is published — the library ships inside the tool and has no package of its own.
+
+**Releasing, in order, because the order is what goes wrong.** The README is packed *into* the package and nuget.org cannot replace it afterwards, so every document is correct on disk **before** `dotnet pack`, never after. Then: raise `<Version>` in `src/Ruledger.Cli/Ruledger.Cli.csproj`, which is the only place carrying the number; `dotnet pack -c Release -o artifacts`; open the `.nupkg` and read the README and the nuspec out of it; install the package itself with `--add-source` and run the three commands; then push. No document names the current version, so that a release never needs an edit that would itself need another release.
 
 The `doc-sync` machinery in the workspace covers folders named `Rulealize*` and does not reach here. The discipline still applies; nothing runs it for you.
 
