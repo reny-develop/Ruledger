@@ -8,3 +8,7 @@
 # Build output
 bin/
 obj/
+
+# Packages, the way the sibling repositories keep them: built locally, published from
+# here, and never committed.
+artifacts/
