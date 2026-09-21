@@ -10,6 +10,9 @@ requirements; this rung of it is where the tools are today.
 
 At the end there is a count of what did not happen. That is the part worth reading twice.
 
+This is the half hour, not the manual. [doc/test-design.md](test-design.md) is what every key
+of the file means, and `ruledger --help` is every flag.
+
 ## What you need
 
 The .NET SDK, and two tools.
@@ -21,11 +24,12 @@ dotnet tool install -g Ruledger.Cli
 
 `rulealize` runs a rule set. `ruledger` derives a test design from one. They share a folder
 and nothing else: `rulealize restore` fetches the vocabularies a rule set draws on into
-`plugin/`, and `ruledger` reads that folder.
+`plugin/`, and `ruledger` reads that folder. So `restore` comes first, once per rule set;
+`ruledger` fetches nothing itself, and without the folder it says so and stops.
+
+Work in an empty directory. Everything below runs there.
 
 ## A rule set, in three commands
-
-Work in an empty directory.
 
 ```sh
 curl -O https://raw.githubusercontent.com/reny-develop/Ruledger/main/verify/ruleset/reversi.json
@@ -35,12 +39,7 @@ curl -O https://raw.githubusercontent.com/reny-develop/Ruledger/main/verify/rule
 $ rulealize restore reversi.json
   Rulealize.Plugin.Arithmetic 1.0.0
   Rulealize.Plugin.Binding 1.0.0
-  Rulealize.Plugin.Branch 1.0.0
-  Rulealize.Plugin.Comparison 1.0.0
-  Rulealize.Plugin.Definition 1.0.0
-  Rulealize.Plugin.Grid 1.1.0
-  Rulealize.Plugin.Logic 1.0.0
-  Rulealize.Plugin.Sequence 1.2.0
+  ... six more ...
   Rulealize.Plugin.State 1.0.0
   Rulealize.Plugin.TypeSchema 1.1.0
 10 plugins -> plugin
@@ -64,16 +63,21 @@ state it had not seen before, and stopping once three thousand of them are writt
 **That is the walk**, and three thousand is the default of `--states`, which is how many it
 may visit. The word "walk" is used below in exactly that sense.
 
+Nothing in it is chosen at random and there is no seed: the same rule set walked with the same
+settings visits the same states in the same order, so `#60` below is the same position on a
+second run as on the first.
+
 Read the lines in order:
 
 - **3,000 states** is where the walk was told to stop, not where reversi runs out. The game
   has around 10²⁸ reachable positions; every walk of it stops somewhere, and where it
   stopped is recorded rather than glossed.
-- **849 final** are the positions the rules call finished, counted by the result the rules
-  give each one: black 842, draw 5, white 2.
+- **849 final**, out of those three thousand, are the positions the rules call finished,
+  counted by the result the rules give each one: black 842, draw 5, white 2.
 - **252 landings the walk had no states left for.** An input was applied, it arrived somewhere
   the walk had not been, and its three thousand states were spent — 252 times. Not "252 things
-  are missing", which nobody can say. It is the only number of its kind Ruledger prints;
+  are missing", which nobody can say. It counts landings and not states, so the same place can
+  be stood in front of more than once. It is the only number of its kind Ruledger prints;
   there is no percentage and no coverage figure, because a number standing in for quality is
   the thing this method was written against.
 - **compared on board, turn, passes.** The walk has to recognise a position it has already
@@ -82,84 +86,54 @@ Read the lines in order:
   everything reversi's state declares. Nobody listed those three: Ruledger read the rule set
   and found that all three are read by something observable. A field that nothing observable
   reads is left out of the comparison, and the line says so — which is what happens to the
-  roster's audit trail further down. `ruledger observe` asks this question on its own.
+  roster's audit trail further down. `ruledger observe` answers this one question and nothing
+  else — what a position is compared on, and what was dropped from the comparison — and it is
+  the one command that reads a rule set without running it, so it does not need `plugin/`.
 - **at most 3,000 states, 10,000 candidates in a state, 64 outcomes for an input.** The three
-  settings this walk ran with, each a count of the thing it limits. None of them comes from
-  the rule set:
-
-| | |
-|---|---|
-| `--states` 3,000 | states to visit before stopping |
-| `--candidates` 10,000 | candidate inputs to try in one state before giving up on finding more legal ones there. The opening position has 65 candidates — `place` on each of the board's 64 squares, and `pass` — which is the `"evaluated": 65` in the file below |
-| `--outcomes` 64 | outcomes of one random draw to follow for an input. Reversi never draws; blackjack does |
-
-They are written into the test design because two designs are only comparable when they
-match. A state the walk never visited because it was told to stop is not the rules deciding
-differently.
+  settings this walk ran with, each a count of the thing it limits, and none of them from the
+  rule set: states to visit before stopping, candidate inputs to try in one state before
+  giving up on finding more legal ones there, and — for an input whose next state the rules
+  draw rather than settle — outcomes of that draw to follow. Neither of these two rule sets
+  draws, so the third never bites here. They are written into the test design, because two
+  designs are only comparable when they match: a state the walk never visited because it was
+  told to stop is not the rules deciding differently. Pass `--states 5000` to change one.
+  `diff` takes none of the three — it walks the new version the way the design in front of it
+  was walked.
 
 ## What came out
 
-`reversi.test-design.json` is the test design. It opens like this:
+`reversi.test-design.json` is the test design. It opens with what the report just said, written
+down — the rule set, the three settings, what a position is compared on, the 252 — and an
+empty `edits`. Then `states`, and the first of them is the opening position:
 
 ```json
-{
-  "$schema": "ruledger/test-design/v1",
-  "ruleSet": "reversi@1.0.0",
-  "settings": {
-    "states": 3000,
-    "candidates": 10000,
-    "outcomes": 64
-  },
-  "observed": [
-    "board",
-    "turn",
-    "passes"
-  ],
-  "collapsed": [],
-  "unreached": 252,
-  "edits": [],
-  "states": [
     {
       "name": "#0",
       "state": {
         "$schema": "rulealize/state/v1",
         "ruleSet": "reversi@1.0.0",
         "data": {
-          "board": {
-            "d5": "black",
-            "e5": "white",
-            "d4": "white",
-            "e4": "black"
-          },
+          "board": { "d5": "black", "e5": "white", "d4": "white", "e4": "black" },
           "turn": "black",
           "passes": 0
         }
       },
       "evaluated": 65,
       "moves": [
-        {
-          "input": "place",
-          "args": {
-            "at": "e6"
-          },
-          "actor": "black",
-          "to": "#1"
-        },
-        {
-          "input": "place",
-          "args": {
-            "at": "f5"
-          },
-          "actor": "black",
-          "to": null
-        },
+        { "input": "place", "args": { "at": "e6" }, "actor": "black", "to": "#1" },
+        { "input": "place", "args": { "at": "f5" }, "actor": "black", "to": null },
+        { "input": "place", "args": { "at": "c4" }, "actor": "black", "to": null },
+        { "input": "place", "args": { "at": "d3" }, "actor": "black", "to": null }
+      ]
+    },
 ```
 
-That is one state, and it is everything that can be observed about it:
+That is one state — a move folded onto a line here, indented over several in the file — and it
+is everything that can be observed about it:
 
-| | |
+| what is observable | where it is |
 |---|---|
-| which inputs are legal | four `place`s, out of 65 candidates whose guard was evaluated |
+| which inputs are legal | four `place`s, out of 65 candidates whose guard was evaluated — `place` on each of the board's 64 squares, and `pass` |
 | whether it is final, and with what result | no `terminal` key, so it is not |
 | where each legal input leads | `"to": "#1"`, and `"to": null` for the three the walk never took |
 
@@ -169,7 +143,22 @@ test design that could be wrong.
 
 `"to": null` on three of the four opening moves is worth stopping at. The walk takes one
 route to the end before coming back, so it spent all three thousand states below
-`place(at: e6)` and never got back up to `f5`. Reported as that, and never as those moves leading nowhere.
+`place(at: e6)` and never got back up to `f5`. Reported as that, and never as those moves
+leading nowhere.
+
+Every state below `#0` also carries `from` and `by` — which state it was first reached from
+and by which input. Following those back spells out how the walk arrived, and that is the name
+a state keeps when the rule set changes. **A number names a state inside one design only.**
+
+Which is what makes the likeliest change to a rule set survivable. Add a field that something
+observable reads — a counter of the moves made, say — and the rules decide exactly what they
+decided before, but the field joins `compared on`, positions that used to be the same position
+are not any more, and the walk rejoins elsewhere. Numbers move; no route does. So the diff of
+that change still reads, and a choice a person made still names the state it named — what it
+can lose is the walk reaching that state, which is the same thing a smaller `--states` would
+cost and is reported the same way. And where the diff carries a line the rules did not put
+there, it says above them that the two were not compared on the same state, rather than
+letting that pass as the rules moving.
 
 ## Change one line
 
@@ -180,8 +169,9 @@ Open `reversi.json`, find the end of `terminal.result`, and swap which count win
 +        "cases": { "gt": "white", "lt": "black", "eq": "draw" }
 ```
 
-Raise the version to `1.1.0` while you are there, and apply the test design you already have
-to the rule set you now have:
+Raise the version to `1.1.0` while you are there — nothing makes you, but the first line of a
+diff is those two names. Then apply the test design you already have to the rule set you now
+have:
 
 ```
 $ ruledger diff reversi.test-design.json reversi.json
@@ -198,8 +188,14 @@ reversi@1.0.0 -> reversi@1.1.0
 Every state is still there. Not one legal input moved. 844 endings say the other name, and
 that is exactly the line you changed. **The diff is the size of the change.**
 
-Now the other end of the same rule set. Put `reversi.json` back, derive again, and this time
-require a placement to flip two discs instead of one:
+`#60 = #59 + place(at: h1)` is that route being spelled out, because the number means nothing
+in the other design. **Decided differently** is a state both designs have that disagree about
+something observable in it — here, 844 times, the ending.
+
+Now the other end of the same rule set. Put the result line back the way it was — the test
+design is untouched, because `diff` without `--write` only reads — and this time change
+`definitions.canPlace`, so that a placement has to flip two discs instead of one. The version
+is the third the rule set has had, so raise it to `1.2.0`:
 
 ```diff
 -          { "op": "seq.any", "source": { "op": "def.call", "def": "flips", "args": { "at": "@at" } } }
@@ -221,7 +217,9 @@ reversi@1.0.0 -> reversi@1.2.0
 ```
 
 One line, and the game does not start: every opening move of reversi flips exactly one disc,
-so the opening position has nothing left to place and `pass` is all there is.
+so the opening position has nothing left to place and `pass` is all there is. The 2,999 and
+the 2 each get a line of their own, further down than the page has room for. Neither side is
+ever left as a count.
 
 **Nobody had to remember that `pass` existed.** It is not in the change, it is not in any
 test somebody wrote, and it arrived in the diff anyway, because the diff is derived from the
@@ -231,7 +229,7 @@ rules rather than from a list of cases a person kept up to date.
 
 Between the two changes above:
 
-| | |
+| what it took | how much |
 |---|---|
 | test cases written | 0 |
 | test data set up | 0 |
@@ -239,6 +237,11 @@ Between the two changes above:
 | blast radius estimated by hand | 0 |
 | host program written | 0 lines |
 | the `pass` ripple | arrived without being remembered |
+
+The fifth row is the one that needs saying out loud. Applying inputs to a rule set, reading
+back what is legal and following where each one goes is what a person would otherwise write a
+program to do, and no such program was written here: the two installed tools did it, and there
+is no project to open.
 
 That is the whole claim, and it is the reason the method exists. What a test design costs is
 reading the diff.
@@ -266,9 +269,8 @@ roster@1.0.0
 declares four fields, and `log` is an audit trail: nothing observable reads it, so it is left
 out when two positions are compared, and two positions are the same position whatever the
 trail behind them says. Without that they never would be — the trail is different every time,
-so the walk would never come back to a position it has been in. Measured, in this repository:
-2,052 rejoins with the trail left out, 0 with it in, and one of this rule set's two endings
-never reached in three thousand states.
+so a walk that compared it would never once come back to a position it had been in, and would
+spend its three thousand states going down one corridor.
 
 ### Writing the one thing a person writes
 
@@ -282,7 +284,9 @@ only kind of thing there is to write. Put it in `edits`:
   ],
 ```
 
-and derive again:
+and derive again. `derive` reads the file it is about to write, and takes the `edits` out of
+it and nothing else: what that file says about the states is what the previous rule set
+decided. Re-deriving after a change to the rules is meant to be the ordinary thing to do.
 
 ```
 $ ruledger derive roster.json
@@ -300,11 +304,15 @@ roster@1.0.0
 again from the rules. You changed which route the walk takes first. You did not write down
 one thing about what it found there.
 
+Which is also the whole of why 16,424 became 16,465. A different first route means a different
+three thousand states fit, so the walk ends up standing in front of a different number of
+places it has nothing left for. The endings did not move, and nothing about the rules did.
+
 ### One clause, and half the staff
 
-Now change the guard so that only senior staff may be placed at all, where before that was
-asked only of the shifts marked senior — delete the `logic.or` around it and keep the inner
-test:
+Now change `definitions.mayWork` so that only senior staff may be placed at all, where before
+that was asked only of the shifts marked senior — delete the `logic.or` around it and keep the
+inner test, and raise the roster's version to `1.1.0`:
 
 ```diff
            {
@@ -345,18 +353,25 @@ The last line of that run is the one to look at:
   1 choice, all carried
 ```
 
-The state space moved out from under it and the choice survived, because a choice is held by
-how the walk arrives at a state — `#0` is still `#0` — and not by what is in the state. Add a
-field to every state in a rule set and every choice still holds; that is measured here too,
-on reversi, with twenty of them.
+A `diff` carries the choices as well as the settings, both so that what comes back is the
+rules' doing and not the walk's. The state space moved out from under this one and it survived
+anyway, because a choice is held by how the walk arrives at a state — `#0` is still `#0` — and
+not by what is in the state — which is why the field added further up costs nothing either.
 
 ## When a choice cannot be carried
 
-`cy` is senior, so that choice survived a change that took half the staff off the board.
-One that does not is easy to arrange: put twenty choices in the design, the first of them
-placing `di` — who is not senior — and make the same change. The tail of the run:
+`cy` is senior, so that choice survived a change that took half the staff off the board. One
+that does not is easy to arrange: twenty choices, each made from the design the ones before it
+produced, the first of them placing `di` — who is not senior — and then the same change. It is
+the command you have already run, with nothing different on disk but `edits`. Swapping the
+choices changes which route the new walk takes, so what comes back differs from its second
+line on and not only in its tail:
 
 ```
+$ ruledger diff roster.test-design.json roster.json
+roster@1.0.0 -> roster@1.1.0
+  1 state in both, 1 decided differently
+...
   0 of 20 choices carried
     assign(who: di, shift: fri-pm) is not legal in #0
     release(shift: fri-pm) was not chosen: #0 + assign(who: di, shift: fri-pm) was not reached before the walk stopped
@@ -364,7 +379,7 @@ placing `di` — who is not senior — and make the same change. The tail of the
 ```
 
 Either the state is still there and the input is not legal in it any more, or the walk did
-not get that far this time. Both are printed, every one of them, and the exit code changes.
+not get that far this time. Both are printed, every one of them, and the command exits `3`.
 
 One choice fell — the first — and the other nineteen went with it, because they were made
 below it and the walk does not go that way any more. Their states are named by a route that
@@ -376,31 +391,22 @@ consequences, each said rather than summarised.
 picked.** A tool that reported only what it managed would be a tool that decided something
 for you in silence.
 
-## Exit codes
-
-`diff` is meant to run on a build server, so what it found is in the exit code.
-
-| | |
-|---|---|
-| 0 | nothing to report |
-| 1 | it could not be done — the rule set does not compile, a file is missing |
-| 2 | the command line was not understood |
-| 3 | the rules decided differently, a choice could not be carried, or the two versions are not compared on the same state |
+## What it is for
 
 Commit the test design. The next diff that comes back with something in it is the blast
-radius of whatever changed since.
+radius of whatever changed since, and `ruledger diff --write` updates the design in place once
+you have read what moved. What `diff` found is in its exit code — `0` when there is nothing to
+report and `3` when there is, whether that is the rules deciding differently or a choice that
+could not be carried — so the check belongs wherever the rule set is built. `ruledger --help`
+has all four codes.
 
-`ruledger diff --write` updates the test design in place once you have read what moved.
+That is the half of it v1 ships. The other half is that the file is already material for a
+test runner: a state travels in it as a `rulealize/state/v1` document and a legal input as the
+name and arguments a `rulealize/input/v1` carries, so the concrete values and what the rules
+answer for them are both there, and nothing has to be walked again to get at them. **v1 ships
+no converter to a particular runner**, and no `ruledger` subcommand touches an implementation.
+There are three of them, and `derive`, `diff` and `observe` are all three.
 
-## Where these numbers come from
-
-Every number in this file is printed by a command you just ran. Every number in the
-repository's own documents comes out of
-
-```sh
-dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"
-```
-
-which walks the measured rule sets, prints what it found, and fails if any of it has moved.
-Nothing here is a figure somebody wrote down once, and the way to check one is to run it
-yourself.
+Every number Ruledger says on this page was printed by the command above it, or is in the file
+that command wrote. There is nothing here to take on trust, which is what a test design is
+for as well.

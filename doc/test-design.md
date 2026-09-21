@@ -234,3 +234,26 @@ states differ as documents, and all twenty choices survive.
 
 Two designs walked with different `settings` are not compared at all. They visited different
 states because they were told to, and none of that is the rule set deciding differently.
+
+A state both designs have is **decided differently** when any of five things about it moved,
+and those five are the three observables and the two limits that can cut them short:
+
+| | |
+|---|---|
+| it lost a legal input | |
+| it gained one | |
+| a legal input lands somewhere else | where the rules draw, this is asked of each branch: one appearing or going, a different value drawn, the same branch at a different chance, or a different `followed` |
+| its ending moved | `terminal` gained, lost, or a different `result` |
+| its `truncated` moved | it started or stopped hitting `candidates`, so the two say different amounts about it |
+
+A state only one of the two designs has is not in that count. It is reported on its own line
+either way, never left as a number: the walk stopped before reaching it this time, or it
+reached somewhere the earlier walk had not.
+
+**Two designs can also disagree about `observed` itself**, and then the walks rejoined in
+different places and some of what the diff says is that rather than the rules. Adding a field
+that something observable reads is enough: the rules decide exactly what they decided, and
+positions that used to be the same position are not any more. There is no telling the two
+apart from inside the diff, so it says which it cannot tell apart, and the exit code is the
+same as the rules moving — a build that went green on it would be a build that passed because
+nobody was told.
