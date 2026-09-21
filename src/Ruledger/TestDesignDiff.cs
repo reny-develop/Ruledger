@@ -223,7 +223,11 @@ namespace Ruledger
                     continue;
                 }
 
-                if (!led.Of(move).SequenceEqual(leads.Of(other)))
+                // How much of the draw was followed is asked as well as the branches, although
+                // a limit that bit differently moves the branches too: the question the two
+                // designs are being held to is what the rules decide, and how much of a draw
+                // was looked at is part of what either of them is saying.
+                if (!led.Of(move).SequenceEqual(leads.Of(other)) || !move.Followed.Equals(other.Followed))
                 {
                     moved.Add(new MoveChange(move, other, led.Text(move), leads.Text(other)));
                 }

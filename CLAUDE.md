@@ -54,7 +54,7 @@ Where the shape of the document cannot settle a question, keep the field rather 
 Two suites, and they answer different questions.
 
 - `dotnet test test/Ruledger.Tests.csproj` — the units, and the command line tool's output and exit codes. Two seconds. A change that breaks one of these broke a member.
-- `dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"` — the measurements. Fifty-five of them, about four minutes, and the log is the report: each one prints what it found and fails if the number has moved. A change that breaks one of these moved a number somebody else is relying on, and the fix is to measure again and write down what it now is.
+- `dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"` — the measurements. Fifty-six of them, about four minutes, and the log is the report: each one prints what it found and fails if the number has moved. A change that breaks one of these moved a number somebody else is relying on, and the fix is to measure again and write down what it now is.
 
 The vocabularies come in as NuGet packages and land beside the test assemblies, which is how the runtime finds them; the plugin repositories are never built from source for this.
 

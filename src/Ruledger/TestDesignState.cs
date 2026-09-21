@@ -102,7 +102,8 @@ namespace Ruledger
             string text,
             string? actor,
             string document,
-            IReadOnlyList<Landing> landings)
+            IReadOnlyList<Landing> landings,
+            double followed = 1)
         {
             Input = input;
             Arguments = arguments;
@@ -110,6 +111,7 @@ namespace Ruledger
             Actor = actor;
             Document = document;
             Landings = landings;
+            Followed = followed;
         }
 
         /// <summary>Gets the name of the input.</summary>
@@ -129,6 +131,25 @@ namespace Ruledger
 
         /// <summary>Gets where applying it can land, which is more than one place where the rules draw.</summary>
         public IReadOnlyList<Landing> Landings { get; }
+
+        /// <summary>Gets how much of the draw <see cref="Landings"/> is: one when all of it, less when the limit cut it short.</summary>
+        /// <remarks>
+        /// <para>
+        /// The one thing about a draw that cutting it short does not leave visible. Truncating
+        /// a list of legal inputs leaves a list of legal inputs, and the state says
+        /// <c>truncated</c> beside it; truncating a draw leaves a distribution that no longer
+        /// sums to one, and adding the branches up is not a way to find that out — floating
+        /// point loses a little of the total whether the search ran to the end or not.
+        /// </para>
+        /// <para>
+        /// The runtime answers it, so this is that answer carried rather than one worked out
+        /// here — and carried only where the runtime also says the search stopped at the
+        /// limit. A draw followed to its end comes to one but for what floating point loses,
+        /// and less than one here means the limit and never that. A move the rules settle has
+        /// one branch and all of it.
+        /// </para>
+        /// </remarks>
+        public double Followed { get; }
 
         /// <inheritdoc />
         public override string ToString() => Text;
@@ -152,6 +173,15 @@ namespace Ruledger
 
         /// <summary>Gets what was drawn, as a <c>rulealize/outcome/v1</c> document, or null where nothing was.</summary>
         public string? Draw { get; }
+
+        /// <summary>Gets what was drawn, written out for a person, or the empty string where nothing was.</summary>
+        /// <remarks>
+        /// The draws of <see cref="Draw"/> and nothing else of it, which is what tells one
+        /// branch of an input from another. Worked out when it is asked for rather than when
+        /// the branch is made, because the only thing that asks is a line being printed about
+        /// a move that changed, and most moves do not.
+        /// </remarks>
+        public string Drew => Route.Drew(Draw);
 
         /// <summary>Gets the name of the state this lands in, or null when the walk stopped before it.</summary>
         /// <remarks>

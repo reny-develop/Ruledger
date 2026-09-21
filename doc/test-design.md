@@ -34,7 +34,7 @@ means that, and `settings` holds that number.
 |---|---|
 | `$schema` | `ruledger/test-design/v1`, and a document without it is refused rather than guessed at |
 | `ruleSet` | what the rule set calls itself, as `id@version` |
-| `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree |
+| `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree. Each of the three leaves a mark where it bit: `"to": null`, `truncated`, `followed` |
 | `observed` | the state paths two positions have to agree on to be the same position, in the order the rule set's `state.schema` declares them |
 | `collapsed` | the state paths left out of that comparison because nothing observable reads them, in the same order |
 | `unreached` | how many landings the walk had no states left for: one per `"to": null` below |
@@ -96,6 +96,7 @@ leads (below). Nothing else is written down, because nothing else can be checked
 | `args` | what it was called with, by parameter name, each in the text form the runtime writes. Absent when the input takes none |
 | `actor` | whose move it is. Absent where the rule set does not say |
 | `to` / `lands` | where applying it goes, in one of the shapes below |
+| `followed` | how much of the draw `lands` is. Present only when `outcomes` cut it short; absent means all of it |
 
 A legal input is its name, its arguments and whose it is, which is why `actor` is here and
 why a field only `actor` reads is still among the `observed`.
@@ -151,6 +152,24 @@ One entry per branch, with what was drawn and how likely it was. `drew` is a
 `rulealize/outcome/v1` document, and it is there because a draw is observable: two branches
 of one input are told apart by nothing else, and a design that left it out would be naming
 two different states the same.
+
+```json
+{ "input": "dealSeat", "followed": 0.23076923076923078, "lands": [ ... ] }
+```
+
+`followed` is the third thing a limit can do, beside `"to": null` for `states` and
+`truncated` for `candidates`. Cutting a list of legal inputs short leaves a list of legal
+inputs; cutting a draw short leaves a distribution that no longer sums to one, and the
+branches that survive cannot say so between them. **Adding them up is not a way to find out
+either**: thirteen thirteenths come to 0.9999999999999996, so a sum below one is as much what
+floating point looks like as what a cut looks like. The runtime answers the question and the
+answer is carried here, on the moves the runtime says were cut short and on no others.
+
+**It is carried and not reported.** A share of something is the one shape Ruledger does not
+print, because a number that says how much of a thing was got is the number this method was
+written against, and the only quantity it prints is `unreached`, which is a count of places. A
+diff between two versions that followed different amounts of a draw says so by their branches
+differing, which is what moved the share in the first place.
 
 ## An edit
 

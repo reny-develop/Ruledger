@@ -114,5 +114,37 @@ namespace Ruledger.Verify
             Assert.All(drawn.Landings, landing => Assert.NotNull(landing.Draw));
             Assert.Equal(1.0, drawn.Landings.Sum(landing => landing.Probability), 6);
         }
+
+        // And where the limit cut a draw short, how much of it was followed is said, because
+        // that is the one thing the branches left behind cannot say. Adding them up is no way
+        // to find out: thirteen thirteenths come to 0.9999999999999996, so a sum below one is
+        // as much what floating point looks like as what a cut looks like. Followed to its
+        // end, nothing is said at all.
+        [Fact]
+        public void ADrawTheLimitCutShortSaysHowMuchOfItWasFollowed()
+        {
+            TestDesign whole = Fixture.Walk("blackjack", 300);
+            TestDesign cut = TestDesign.Derive(
+                Fixture.Runtime,
+                Fixture.RuleSet("blackjack"),
+                null,
+                new WalkSettings(States: 300, Outcomes: 3));
+
+            Move drawn = cut.States.SelectMany(state => state.Moves).First(move => move.Landings.Count > 1);
+
+            said.WriteLine($"blackjack at 300 states: following every draw whole, {Cut(whole)} moves say "
+                + $"how much was followed; following 3 outcomes of each, {Cut(cut)} do, the first of them "
+                + $"{drawn} at {drawn.Followed:0.######} of its draw, its branches summing to "
+                + $"{drawn.Landings.Sum(landing => landing.Probability):0.######}");
+
+            Assert.Equal(0, Cut(whole));
+            Assert.Equal(64, Cut(cut));
+            Assert.Equal(3.0 / 13.0, drawn.Followed, 6);
+        }
+
+        // How many moves in a design say how much of their draw was followed, which is how
+        // many the limit cut short and no more.
+        private static int Cut(TestDesign design) =>
+            design.States.Sum(state => state.Moves.Count(move => move.Followed < 1));
     }
 }

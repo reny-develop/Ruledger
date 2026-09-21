@@ -23,9 +23,10 @@ namespace Ruledger
     /// Where the rules draw nothing, applying an input settles the next state, so a move says
     /// <c>to</c>. Where they draw, it says <c>lands</c>, one entry per branch with what was
     /// drawn and how likely it was — the same distinction Rulealize makes by leaving an outcome
-    /// document out when there is nothing in it. <c>"to": null</c> is a landing the walk had
-    /// no states left to visit; a move with neither is a move in a state the rules call final,
-    /// offered and not followed.
+    /// document out when there is nothing in it — and <c>followed</c> beside it where the limit
+    /// cut the draw short of all of it. <c>"to": null</c> is a landing the walk had no states
+    /// left to visit; a move with neither is a move in a state the rules call final, offered
+    /// and not followed.
     /// </para>
     /// </remarks>
     internal static class TestDesignDocument
@@ -207,6 +208,14 @@ namespace Ruledger
             }
             else if (move.Landings.Count > 0)
             {
+                // Written only where the limit cut the draw short, the way a state says
+                // `truncated` only where it stopped looking. A move without it is a move whose
+                // branches are all of them, and that is the ordinary case.
+                if (move.Followed < 1)
+                {
+                    writer.WriteNumber("followed", move.Followed);
+                }
+
                 writer.WriteStartArray("lands");
                 foreach (Landing landing in move.Landings)
                 {
@@ -327,7 +336,8 @@ namespace Ruledger
                     : $"{input}({string.Join(", ", arguments.Select(static a => $"{a.Key}: {a.Value}"))})",
                 move.TryGetProperty("actor", out JsonElement actor) ? actor.GetString() : null,
                 string.Empty,
-                landings);
+                landings,
+                move.TryGetProperty("followed", out JsonElement followed) ? followed.GetDouble() : 1);
         }
 
         private static string? Target(JsonElement node) =>

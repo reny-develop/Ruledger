@@ -95,6 +95,32 @@ namespace Ruledger.Tests
             Assert.Equal("blackjack@1.0.0", first.GetProperty("drew").GetProperty("ruleSet").GetString());
         }
 
+        // A draw the limit cut short leaves a distribution that no longer sums to one, and the
+        // branches do not say so on their own. The move does.
+        [Fact]
+        public void ADrawTheLimitCutShortSaysHowMuchOfItWasFollowed()
+        {
+            JsonElement drawn = Drawing(new WalkSettings(States: 300, Outcomes: 3));
+
+            Assert.Equal(3, drawn.GetProperty("lands").GetArrayLength());
+            Assert.True(drawn.GetProperty("followed").GetDouble() < 1.0);
+        }
+
+        // And a draw followed to its end says nothing, rather than saying nearly all of it.
+        // Thirteen thirteenths come to 0.9999999999999996, which is what the limit not having
+        // bitten looks like in a double, and writing that down would report a cut that was not
+        // made.
+        [Fact]
+        public void ADrawFollowedToItsEndSaysNothing()
+        {
+            Assert.All(
+                Parse(Derive("blackjack").ToJson())
+                    .GetProperty("states")
+                    .EnumerateArray()
+                    .SelectMany(state => state.GetProperty("moves").EnumerateArray()),
+                move => Assert.False(move.TryGetProperty("followed", out _)));
+        }
+
         // The states stopped in front of somewhere, and that is what is said, rather than the
         // move being left out as though it went nowhere.
         [Fact]
@@ -147,6 +173,13 @@ namespace Ruledger.Tests
 
         private static TestDesign Derive(string ruleSet) =>
             TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read(ruleSet), new WalkSettings(States: 300));
+
+        private static JsonElement Drawing(WalkSettings settings) =>
+            Parse(TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read("blackjack"), settings).ToJson())
+                .GetProperty("states")
+                .EnumerateArray()
+                .SelectMany(state => state.GetProperty("moves").EnumerateArray())
+                .First(move => move.TryGetProperty("lands", out _));
 
         private static JsonElement Parse(string design) => JsonDocument.Parse(design).RootElement.Clone();
     }

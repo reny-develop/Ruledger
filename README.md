@@ -53,7 +53,7 @@ Every claim about Ruledger is a number, and every one of them comes out of a run
 dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"
 ```
 
-55 measurements, about four minutes. They walk the rule sets in `verify/ruleset/`, print what
+56 measurements, about four minutes. They walk the rule sets in `verify/ruleset/`, print what
 they found, and fail if any of it has moved. Nothing about this project is a figure somebody
 wrote down once: the numbers in these documents are the numbers that command prints, and the
 way to check one is to run it.

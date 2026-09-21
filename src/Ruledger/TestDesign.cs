@@ -271,12 +271,26 @@ namespace Ruledger
                     string document = input.ToInputDocument(rules.RuleSet);
                     List<Landing> landings = [];
                     List<Step> ahead = [];
+                    double followed = 1;
 
                     // Past the end there is nothing to reach, so the moves a rule set still
                     // offers are written down and none of them is followed.
                     if (!terminal.IsTerminal)
                     {
-                        foreach (Outcome outcome in rules.GetOutcomes(document, state, settings.Outcomes))
+                        OutcomeSet outcomes = rules.GetOutcomes(document, state, settings.Outcomes);
+
+                        // How much of the draw these branches are. Kept because it is the one
+                        // thing the branches themselves do not say: a distribution the limit
+                        // cut short is one that does not sum to one, and what floating point
+                        // loses on the way makes adding them up no way to tell.
+                        //
+                        // Which is also why the runtime's answer is taken only where the
+                        // runtime says the search stopped. Thirteen branches of a thirteen
+                        // card draw come to 0.9999999999999996, and a walk that wrote that
+                        // down would be saying a draw was cut short that was not.
+                        followed = outcomes.Truncated ? outcomes.Coverage : 1;
+
+                        foreach (Outcome outcome in outcomes)
                         {
                             Landing landing = new(
                                 outcome.Probability,
@@ -293,7 +307,8 @@ namespace Ruledger
                         input.ToString(),
                         input.Actor,
                         document,
-                        landings));
+                        landings,
+                        followed));
 
                     onward.Add(ahead);
                 }

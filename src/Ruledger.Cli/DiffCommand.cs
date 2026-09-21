@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Reny
 // Licensed under the Apache License, Version 2.0.
 
+using System.Globalization;
 using System.Text.Json;
 using Rulealize;
 using Rulealize.Abstraction;
@@ -177,11 +178,37 @@ namespace Ruledger.Cli
         // 'now' and as what it was: the same place has a different number in the two test
         // designs whenever the walk rejoined somewhere else, and that is itself the news.
         // A branch the walk stopped in front of is that, and never an empty place.
-        private static string Lands(Move move) =>
-            move.Landings.Count is 0
-                ? "nowhere, the state being final"
-                : string.Join(" ", move.Landings.Select(static landing =>
-                    landing.To ?? "not reached before the walk stopped"));
+        //
+        // A move the rules settle says where it goes and no more. A move that draws says what
+        // was drawn and how likely it was as well, because those are what tell one branch from
+        // another: a rule set whose draw was reweighted lands in the same places, and a line
+        // that printed only the places would be the same line twice over.
+        //
+        // How much of the draw was followed is not said, although the move carries it. What is
+        // printed here is a count of places and the chances the rules gave them, and a share of
+        // something is the one shape this tool does not put in front of a person. Nothing is
+        // lost by leaving it out: a share that moved is the branches having moved, so the
+        // branches above already say it, and the test design carries the number itself.
+        private static string Lands(Move move)
+        {
+            if (move.Landings.Count is 0)
+            {
+                return "nowhere, the state being final";
+            }
+
+            if (move.Landings.Count is 1 && move.Landings[0].Draw is null)
+            {
+                return Landed(move.Landings[0]);
+            }
+
+            return string.Join(", ", move.Landings.Select(static landing =>
+                $"{landing.Drew} {Number(landing.Probability)} -> {Landed(landing)}"));
+        }
+
+        private static string Landed(Landing landing) =>
+            landing.To ?? "not reached before the walk stopped";
+
+        private static string Number(double chance) => chance.ToString(CultureInfo.InvariantCulture);
 
         private static string Ending(TestDesignState state) =>
             state.IsTerminal ? "final " + (state.Result ?? "(no result)") : "not final";
