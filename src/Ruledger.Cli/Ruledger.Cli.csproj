@@ -24,7 +24,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>ruledger</ToolCommandName>
     <PackageId>Ruledger.Cli</PackageId>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <Authors>Reny</Authors>
     <Description>Walks a Rulealize rule set and writes down, for every state it visits, everything that can be observed there: which inputs are legal, whether it is final and with what result, and where each legal input leads. Applying that test design to a later version of the rule set is the diff, and the choices a person made are carried across it.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
