@@ -15,8 +15,9 @@ namespace Ruledger
     /// change to the rules.
     /// </para>
     /// <para>
-    /// The set is derived, never declared. A guard, a parameter domain and the two
-    /// <c>terminal</c> expressions are the only places an observation can come from, so what
+    /// The set is derived, never declared. A guard, a parameter domain, an input's
+    /// <c>validate</c> clauses and the two <c>terminal</c> expressions are the only places an
+    /// observation can come from, so what
     /// those read — through definitions, and through the effects that write what they read —
     /// is the whole of it. The second half is why this is a fixed point rather than a walk:
     /// a field no guard mentions still reaches an observation if an effect writes an observed
@@ -160,6 +161,15 @@ namespace Ruledger
                                 yield return domain;
                             }
                         }
+                    }
+
+                    // What `validate` refuses is not a legal move, so a clause decides what is
+                    // legal as much as the guard does: `name.unchanged` reads the name, and two
+                    // states that differ only in it offer different values.
+                    if (input.Value.TryGetProperty("validate", out JsonElement validate)
+                        && validate.ValueKind == JsonValueKind.Array)
+                    {
+                        yield return validate;
                     }
 
                     if (input.Value.TryGetProperty("fires", out JsonElement fires)

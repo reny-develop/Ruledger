@@ -1,10 +1,13 @@
 // Copyright (c) 2026 Reny
 // Licensed under the Apache License, Version 2.0.
 
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Rulealize;
 using Rulealize.Abstraction;
+using Rulealize.Abstraction.Value;
 
 namespace Ruledger
 {
@@ -113,13 +116,13 @@ namespace Ruledger
         }
 
         /// <summary>Reads a test design back.</summary>
-        /// <param name="testDesign">A <c>ruledger/test-design/v1</c> document.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v2</c> document, or a v1 one.</param>
         /// <returns>What it says.</returns>
         /// <exception cref="JsonException">The text is not JSON.</exception>
         /// <exception cref="InvalidOperationException">The text is not a test design.</exception>
         public static TestDesign FromJson(string testDesign) => TestDesignDocument.Read(testDesign);
 
-        /// <summary>Writes this test design as a <c>ruledger/test-design/v1</c> document.</summary>
+        /// <summary>Writes this test design as a <c>ruledger/test-design/v2</c> document.</summary>
         /// <returns>The document.</returns>
         /// <remarks>
         /// This is the test design — what a person reads against what they meant, what they put
@@ -268,55 +271,239 @@ namespace Ruledger
                 List<List<Step>> onward = [];
                 foreach (ValidInput input in legal)
                 {
-                    string document = input.ToInputDocument(rules.RuleSet);
-                    List<Landing> landings = [];
-                    List<Step> ahead = [];
-                    double followed = 1;
-
-                    // Past the end there is nothing to reach, so the moves a rule set still
-                    // offers are written down and none of them is followed.
-                    if (!terminal.IsTerminal)
+                    if (input.IsComplete)
                     {
-                        OutcomeSet outcomes = rules.GetOutcomes(document, state, settings.Outcomes);
-
-                        // How much of the draw these branches are. Kept because it is the one
-                        // thing the branches themselves do not say: a distribution the limit
-                        // cut short is one that does not sum to one, and what floating point
-                        // loses on the way makes adding them up no way to tell.
-                        //
-                        // Which is also why the runtime's answer is taken only where the
-                        // runtime says the search stopped. Thirteen branches of a thirteen
-                        // card draw come to 0.9999999999999996, and a walk that wrote that
-                        // down would be saying a draw was cut short that was not.
-                        followed = outcomes.Truncated ? outcomes.Coverage : 1;
-
-                        foreach (Outcome outcome in outcomes)
-                        {
-                            Landing landing = new(
-                                outcome.Probability,
-                                outcome.Draws.IsEmpty ? null : outcome.ToOutcomeDocument(rules.RuleSet));
-
-                            landings.Add(landing);
-                            ahead.Add(new Step(landing, outcome.Result.State, input.ToString()));
-                        }
+                        Follow(entry, onward, state, terminal, input, Settled(input), input.ToString(), input.ToInputDocument(rules.RuleSet));
+                        continue;
                     }
 
-                    entry.Moves.Add(new Move(
-                        input.Input,
-                        input.Arguments.ToDictionary(static a => a.Key, static a => a.Value, StringComparer.Ordinal),
-                        input.ToString(),
-                        input.Actor,
-                        document,
-                        landings,
-                        followed));
-
-                    onward.Add(ahead);
+                    Fill(entry, onward, name, state, terminal, input);
                 }
 
                 entry.Ahead.AddRange(Ordered(name, entry.Moves, onward));
                 this.descending.Push(entry);
                 return name;
             }
+
+            // A move offered with a parameter left open is waiting for a value from outside,
+            // and there are two honest things to do with it. Where the schema it is open to
+            // admits few enough values to name them all — an enumeration, a boolean, a whole
+            // number between two bounds — every one of them is tried, exactly as a domain
+            // would have been, and the ones the rules refuse are not legal moves. Where it
+            // does not, as with text, the walk follows only the values a person wrote as
+            // choices, and writes the move down as legal and waiting for the rest. Guessing a
+            // value would be the machine supplying judgement, which is the one thing it
+            // refuses to do.
+            private void Fill(Entry entry, List<List<Step>> onward, string name, string state, TerminalStatus terminal, ValidInput input)
+            {
+                IReadOnlyList<Dictionary<string, JsonNode?>>? every = Every(input.Open, entry);
+
+                if (every is null)
+                {
+                    string[] waiting = [.. input.Open.Select(static open => open.Name)];
+                    entry.Moves.Add(new Move(
+                        input.Input,
+                        Settled(input),
+                        Move.Write(input.Input, Settled(input), waiting),
+                        input.Actor,
+                        string.Empty,
+                        [],
+                        open: waiting));
+                    onward.Add([]);
+                }
+
+                foreach (Dictionary<string, JsonNode?> values in every ?? Written(input, name))
+                {
+                    Dictionary<string, string> arguments = Settled(input);
+                    foreach (OpenParameter open in input.Open)
+                    {
+                        arguments[open.Name] = Text(values[open.Name]);
+                    }
+
+                    string document = input.ToInputDocument(rules.RuleSet, values!);
+                    entry.Evaluated++;
+
+                    // Applying it is how a value is found to be one the rules admit: what
+                    // `validate` refuses is not a legal move, however the guard answered.
+                    try
+                    {
+                        rules.GetOutcomes(document, state, 1);
+                    }
+                    catch (IllegalInputException)
+                    {
+                        continue;
+                    }
+
+                    Follow(entry, onward, state, terminal, input, arguments, Move.Write(input.Input, arguments), document);
+                }
+            }
+
+            private void Follow(
+                Entry entry,
+                List<List<Step>> onward,
+                string state,
+                TerminalStatus terminal,
+                ValidInput input,
+                Dictionary<string, string> arguments,
+                string text,
+                string document)
+            {
+                List<Landing> landings = [];
+                List<Step> ahead = [];
+                double followed = 1;
+
+                // Past the end there is nothing to reach, so the moves a rule set still
+                // offers are written down and none of them is followed.
+                if (!terminal.IsTerminal)
+                {
+                    OutcomeSet outcomes = rules.GetOutcomes(document, state, settings.Outcomes);
+
+                    // How much of the draw these branches are. Kept because it is the one
+                    // thing the branches themselves do not say: a distribution the limit
+                    // cut short is one that does not sum to one, and what floating point
+                    // loses on the way makes adding them up no way to tell.
+                    //
+                    // Which is also why the runtime's answer is taken only where the
+                    // runtime says the search stopped. Thirteen branches of a thirteen
+                    // card draw come to 0.9999999999999996, and a walk that wrote that
+                    // down would be saying a draw was cut short that was not.
+                    followed = outcomes.Truncated ? outcomes.Coverage : 1;
+
+                    foreach (Outcome outcome in outcomes)
+                    {
+                        Landing landing = new(
+                            outcome.Probability,
+                            outcome.Draws.IsEmpty ? null : outcome.ToOutcomeDocument(rules.RuleSet));
+
+                        landings.Add(landing);
+                        ahead.Add(new Step(landing, outcome.Result.State, text));
+                    }
+                }
+
+                entry.Moves.Add(new Move(
+                    input.Input,
+                    arguments,
+                    text,
+                    input.Actor,
+                    document,
+                    landings,
+                    followed));
+
+                onward.Add(ahead);
+            }
+
+            // Every value each open parameter's schema admits, and every way of putting them
+            // together, or null where one of them cannot be named in full.
+            //
+            // The schema is read by its op, which puts three names from TypeSchema in here
+            // beside the ones ObservationScan knows. The runtime hands the op over for exactly
+            // this — the bounds come as a record whose keys mean what that vocabulary says
+            // they mean — and the alternative, reading `min` and `max` without it, would count
+            // the whole numbers between the bounds of a field that holds fractions.
+            private IReadOnlyList<Dictionary<string, JsonNode?>>? Every(OpenParameterList open, Entry entry)
+            {
+                List<Dictionary<string, JsonNode?>> every = [new(StringComparer.Ordinal)];
+
+                foreach (OpenParameter parameter in open)
+                {
+                    if (Values(parameter) is not { } values)
+                    {
+                        return null;
+                    }
+
+                    every = [.. every.SelectMany(so => values.Select(value =>
+                        new Dictionary<string, JsonNode?>(so, StringComparer.Ordinal) { [parameter.Name] = value?.DeepClone() }))];
+
+                    // More than the walk may try in one state is cut where the guard's own
+                    // search would have been cut, and marked the same way.
+                    if (every.Count > settings.Candidates)
+                    {
+                        every.RemoveRange(settings.Candidates, every.Count - settings.Candidates);
+                        entry.Truncated = true;
+                    }
+                }
+
+                return every;
+            }
+
+            private IReadOnlyList<JsonNode?>? Values(OpenParameter parameter)
+            {
+                RecordValue bounds = parameter.Description;
+
+                switch (parameter.Op)
+                {
+                    case "type.enum" when bounds["values"] is SequenceValue values:
+                        return [.. values.Select(Json)];
+
+                    case "type.bool":
+                        return [JsonValue.Create(false), JsonValue.Create(true)];
+
+                    case "type.int" when bounds["min"] is NumberValue min && bounds["max"] is NumberValue max
+                        && max.Value - min.Value < settings.Candidates:
+                        List<JsonNode?> range = [];
+                        for (decimal at = decimal.Ceiling(min.Value); at <= max.Value; at++)
+                        {
+                            range.Add(JsonValue.Create(at));
+                        }
+
+                        return range;
+
+                    default:
+                        return null;
+                }
+            }
+
+            // The values a person wrote for a move nobody could enumerate, one choice each.
+            // A choice that names a value the rules then refuse is not carried, and says so.
+            private IEnumerable<Dictionary<string, JsonNode?>> Written(ValidInput input, string name)
+            {
+                Dictionary<string, string> settled = Settled(input);
+
+                foreach (TestDesignEdit edit in edits.Where(edit => edit.Input == input.Input && Names(edit, name)))
+                {
+                    if (!input.Open.All(open => edit.Arguments.ContainsKey(open.Name))
+                        || !settled.All(argument => edit.Arguments.TryGetValue(argument.Key, out string? value) && value == argument.Value))
+                    {
+                        continue;
+                    }
+
+                    yield return input.Open.ToDictionary(
+                        static open => open.Name,
+                        open => Parse(open, edit.Arguments[open.Name]),
+                        StringComparer.Ordinal);
+                }
+            }
+
+            // What a person wrote is text, and "2" is not 2: the schema's op says which it is.
+            private static JsonNode? Parse(OpenParameter open, string text) => open.Op switch
+            {
+                "type.int" or "type.decimal" when decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal number) =>
+                    JsonValue.Create(number),
+                "type.bool" when bool.TryParse(text, out bool flag) => JsonValue.Create(flag),
+                _ => JsonValue.Create(text),
+            };
+
+            private static JsonNode? Json(RuleValue value) => value switch
+            {
+                TextValue text => JsonValue.Create(text.Value),
+                NumberValue number => JsonValue.Create(number.Value),
+                BooleanValue flag => JsonValue.Create(flag.Value),
+                _ => null,
+            };
+
+            // In the text form the runtime writes an argument in, so that a value somebody
+            // filled in and one a domain produced read the same.
+            private static string Text(JsonNode? value) => value switch
+            {
+                null => "null",
+                JsonValue text when text.GetValueKind() == JsonValueKind.String => text.GetValue<string>(),
+                JsonValue number when number.GetValueKind() == JsonValueKind.Number =>
+                    RuleValue.FormatNumber(decimal.Parse(number.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture)),
+                _ => value.ToJsonString(),
+            };
+
+            private static Dictionary<string, string> Settled(ValidInput input) =>
+                input.Arguments.ToDictionary(static a => a.Key, static a => a.Value, StringComparer.Ordinal);
 
             // The one place a person's writing reaches. Which inputs are legal here is an
             // observation and keeps the order the runtime offered them in; which one the walk

@@ -74,7 +74,7 @@ namespace Ruledger
 
         /// <summary>Applies a test design to a version of the rule set, which is to say diffs the two.</summary>
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
-        /// <param name="testDesign">A <c>ruledger/test-design/v1</c> document, derived from an earlier version.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v2</c> document, or a v1 one, derived from an earlier version.</param>
         /// <param name="ruleSet">The version of the rule set to apply it to, as text.</param>
         /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
         /// <returns>What the new version decides differently, and what became of the choices in the test design.</returns>

@@ -67,6 +67,7 @@ way to check one is to run it.
 | Derive the test design, filling in the concrete values and the expected results | **In** |
 | Apply the previous test design to a new version of the rule set and report what changed | **In** |
 | Carry a human's edits across a change to the rule set | **In** |
+| Walk a parameter the rule set leaves open | **In**. Every value its schema admits where those can be named — an enumeration, a boolean, a bounded whole number — and otherwise only the values a person wrote as choices. It never makes one up |
 | Verify anything outside the rule set — screens, persistence, integrations | Out. Not a limit in principle: what Ruledger reaches is what the rule set expresses, and that is extended by adding vocabulary, not by changing Ruledger |
 | Visualize or edit the rule set | Out. A rule set is still JSON, which is hard to hand-write even for an engineer |
 | Record approvals | Out. Approval is committing the test design; expiry is the diff coming back non-empty. Git already does both |
@@ -87,6 +88,10 @@ positions are compared on, writes the test design down, applies one to a later v
 carries the developer's edits across. The command line tool does all of that from a shell.
 The measurements all run. `Ruledger.Cli` is on nuget.org, so the two install lines above
 are what works rather than what will.
+
+Since then it runs on the Rulealize that leaves a parameter open and lets an input `validate`
+its arguments, and the test design it writes is `ruledger/test-design/v2` for the one shape that
+added — a move waiting for a value. A v1 test design is still read.
 
 The tool is C#: it needs the Rulealize runtime, and reading the rule set statically is part of
 the same job, not a separate program in another language.

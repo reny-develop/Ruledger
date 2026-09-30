@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Ruledger
 {
-    /// <summary>The <c>ruledger/test-design/v1</c> document: a test design, written down.</summary>
+    /// <summary>The <c>ruledger/test-design/v2</c> document: a test design, written down.</summary>
     /// <remarks>
     /// <para>
     /// A fourth document beside the three Rulealize already reads, and made of them: a state
@@ -28,10 +28,20 @@ namespace Ruledger
     /// left to visit; a move with neither is a move in a state the rules call final, offered
     /// and not followed.
     /// </para>
+    /// <para>
+    /// v2 adds one shape to v1: a move that says <c>open</c> is legal and waiting for a value
+    /// nobody could enumerate, so it too has neither <c>to</c> nor <c>lands</c>. A v1 reader would
+    /// take it for a move in a final state, which is why the version moved. Everything v1 wrote
+    /// is still v2, so a v1 document is read as one.
+    /// </para>
     /// </remarks>
     internal static class TestDesignDocument
     {
-        private const string Schema = "ruledger/test-design/v1";
+        private const string Schema = "ruledger/test-design/v2";
+
+        // What an earlier Ruledger wrote, read as it stands: every v1 document is a v2 document
+        // that happens to have no move waiting for a value.
+        private const string Earlier = "ruledger/test-design/v1";
 
         public static string Write(TestDesign design)
         {
@@ -85,7 +95,7 @@ namespace Ruledger
             JsonElement root = document.RootElement;
 
             if (!root.TryGetProperty("$schema", out JsonElement schema)
-                || schema.GetString() != Schema)
+                || schema.GetString() is not (Schema or Earlier))
             {
                 throw new InvalidOperationException($"This is not a '{Schema}' document.");
             }
@@ -200,6 +210,11 @@ namespace Ruledger
             if (move.Actor is not null)
             {
                 writer.WriteString("actor", move.Actor);
+            }
+
+            if (move.Open.Count > 0)
+            {
+                WriteNames(writer, "open", move.Open);
             }
 
             if (move.Landings.Count == 1 && move.Landings[0].Draw is null)
@@ -327,17 +342,17 @@ namespace Ruledger
 
             string input = move.GetProperty("input").GetString() ?? string.Empty;
             IReadOnlyDictionary<string, string> arguments = ReadArguments(move);
+            IReadOnlyList<string>? open = move.TryGetProperty("open", out _) ? ReadNames(move, "open") : null;
 
             return new Move(
                 input,
                 arguments,
-                arguments.Count == 0
-                    ? input
-                    : $"{input}({string.Join(", ", arguments.Select(static a => $"{a.Key}: {a.Value}"))})",
+                Move.Write(input, arguments, open),
                 move.TryGetProperty("actor", out JsonElement actor) ? actor.GetString() : null,
                 string.Empty,
                 landings,
-                move.TryGetProperty("followed", out JsonElement followed) ? followed.GetDouble() : 1);
+                move.TryGetProperty("followed", out JsonElement followed) ? followed.GetDouble() : 1,
+                open);
         }
 
         private static string? Target(JsonElement node) =>

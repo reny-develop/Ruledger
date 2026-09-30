@@ -103,7 +103,8 @@ namespace Ruledger
             string? actor,
             string document,
             IReadOnlyList<Landing> landings,
-            double followed = 1)
+            double followed = 1,
+            IReadOnlyList<string>? open = null)
         {
             Input = input;
             Arguments = arguments;
@@ -112,6 +113,7 @@ namespace Ruledger
             Document = document;
             Landings = landings;
             Followed = followed;
+            Open = open ?? [];
         }
 
         /// <summary>Gets the name of the input.</summary>
@@ -126,7 +128,15 @@ namespace Ruledger
         /// <summary>Gets whose move this is, or null where the rule set does not say.</summary>
         public string? Actor { get; }
 
-        /// <summary>Gets the input as a <c>rulealize/input/v1</c> document, ready to apply.</summary>
+        /// <summary>Gets the parameters this move is still waiting for, in declared order, or none.</summary>
+        /// <remarks>
+        /// A move offered with a parameter whose values nobody could enumerate, and for which
+        /// no person wrote one. It is legal and it is not followed: where it would lead turns
+        /// on a value the walk does not have, and it does not make one up.
+        /// </remarks>
+        public IReadOnlyList<string> Open { get; }
+
+        /// <summary>Gets the input as a <c>rulealize/input/v1</c> document, ready to apply, or the empty string for a move still waiting for a value.</summary>
         public string Document { get; }
 
         /// <summary>Gets where applying it can land, which is more than one place where the rules draw.</summary>
@@ -153,6 +163,18 @@ namespace Ruledger
 
         /// <inheritdoc />
         public override string ToString() => Text;
+
+        /// <summary>Writes a move the way <see cref="Text"/> has it: <c>place(at: c4)</c>, and <c>setName(to: ?)</c> for one still waiting.</summary>
+        internal static string Write(string input, IReadOnlyDictionary<string, string> arguments, IReadOnlyList<string>? open = null)
+        {
+            string[] parts =
+            [
+                .. arguments.Select(static argument => $"{argument.Key}: {argument.Value}"),
+                .. (open ?? []).Select(static name => $"{name}: ?"),
+            ];
+
+            return parts.Length == 0 ? input : $"{input}({string.Join(", ", parts)})";
+        }
     }
 
     /// <summary>One place applying an input can land.</summary>

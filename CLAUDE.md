@@ -9,7 +9,7 @@ One C# class library (`src/Ruledger/`, `net10.0`, nullable + implicit usings, a 
 
 **Releasing, in order, because the order is what goes wrong.** The README is packed *into* the package and nuget.org cannot replace it afterwards, so every document is correct on disk **before** `dotnet pack`, never after. Then: raise `<Version>` in `src/Ruledger.Cli/Ruledger.Cli.csproj`, which is the only place carrying the number; `dotnet pack -c Release -o artifacts`; open the `.nupkg` and read the README and the nuspec out of it; install the package itself with `--add-source` and run the three commands; then push. No document names the current version, so that a release never needs an edit that would itself need another release.
 
-The `doc-sync` machinery in the workspace covers folders named `Rulealize*` and does not reach here, on purpose: Ruledger is frozen as the proof of v1, and its pins of Rulealize and the plugins record what that proof ran on rather than lagging behind the workspace. The discipline still applies to anything changed here; nothing runs it for you.
+The `doc-sync` machinery in the workspace covers folders named `Rulealize*` and does not reach here, on purpose. Ruledger was frozen as the proof of v1 until 2026-09-30, when it moved to Rulealize 0.11.0 because RulealizeStudio replays test designs of rule sets written for that runtime, and those leave parameters open and `validate` their arguments. The fifty-six measurements ran unchanged on it before anything else moved, which is what says the proof still stands; its pins now say what it is built on rather than what the proof first ran on. The discipline still applies to anything changed here; nothing runs it for you.
 
 ## Fixtures
 `verify/ruleset/` holds the documents the measurements are about. Some were copied from `Rulealize/ruleset/` and the rest were written here.
@@ -36,7 +36,9 @@ English keeps "document", which is what Rulealize calls the four kinds it reads.
 **In Japanese, never write 文書 for a rule set.** Japanese uses the same word for the JSON and for the prose about it, so a listener has to work out which one is meant every time. A rule set is ルールセット, a state is 状態, an input is 入力. 状態パス is a place inside a state (`assigned`); 状態の名前 is how the walk arrived (`#2 = #1 + release(月)`).
 
 ## What a test design may say
-Three things are observable about a state and only those are written down: which inputs are legal, whether it is final and with what result, and where each legal input leads. A legal input is its name, its arguments and whose it is.
+Three things are observable about a state and only those are written down: which inputs are legal, whether it is final and with what result, and where each legal input leads. A legal input is its name, its arguments and whose it is. A value `validate` refuses is not a legal argument, so `validate` is read for what is observed as the guard is.
+
+A parameter left open is walked with every value its schema admits where those are few enough to name, and otherwise only with values a person wrote as choices; without one the move is written down as waiting and not followed. The machine never makes a value up.
 
 The one place a person writes is a choice — from this state, take this input first. Everything downstream of it is worked out again. An observation written by hand would be the only thing in a test design that can be wrong, so there is nowhere to write one.
 
@@ -58,7 +60,7 @@ A composite whose components were not supplied is refused rather than answered. 
 A person's choices are held by **how the walk arrives** at a state and never by what is in it. A field added to every state moves every state and no route; keying by contents would lose every choice on a change that altered no behaviour.
 
 ## Reading a rule set
-The runtime answers everything about behaviour; the document is read only to work out which state a position is compared on. That is the one place Ruledger knows a vocabulary by name — `state.get`, `state.update`, `def.ref`, `def.call`, `rec.at`, and the `$` and `#` shorthands. Adding a sixth is a decision, not a detail: say in the code why the alternative did not work.
+The runtime answers everything about behaviour; the document is read only to work out which state a position is compared on. That is one of the two places Ruledger knows a vocabulary by name — `state.get`, `state.update`, `def.ref`, `def.call`, `rec.at`, and the `$` and `#` shorthands. The other is the walk deciding whether a parameter left open admits few enough values to try them all: `type.enum`, `type.bool` and `type.int`, read off `OpenParameter.Op`, which the runtime hands over so that the bounds beside it can be read in that vocabulary's terms. Adding another is a decision, not a detail: say in the code why the alternative did not work.
 
 Where the shape of the document cannot settle a question, keep the field rather than collapse it. Keeping too much costs rejoining; collapsing too much hides something observable.
 
@@ -75,5 +77,5 @@ The vocabularies come in as NuGet packages and land beside the test assemblies, 
 The twenty choices the carry-over measurements are about are fixed in `verify/choice/`, not rebuilt each run. Stacking them — one at a time, each read off the design the ones before it produced — is how they were arrived at and it is written in the file; applying all twenty to one walk reaches the same design, which is why the file is enough.
 
 ## Not decided
-- **How `ruledger/test-design/v1` gets a version.** Whether the walk becomes a recorded setting rides on this. There is one walk, so it is not recorded; add a second and an old test design can no longer say which one produced it — raise the schema version to tell them apart, or add a settings field. Decide it then, not now.
+- **How the walk gets a version.** The form did: `ruledger/test-design/v2` adds a move waiting for a value, which a v1 reader would have taken for a move in a final state, and a v1 document is still read as a v2 one. Whether the walk becomes a recorded setting is a separate question. There is one walk, so it is not recorded; add a second and an old test design can no longer say which one produced it — raise the schema version to tell them apart, or add a settings field. Decide it then, not now.
 - **Registering both repositories in `docmap.json`.** The README's table of what v1 does and the sibling README restate each other in places. Deferred. What is registered is the one fact Ruledger shares with Rulealize: the tutorial's `rulealize restore` transcript (`restore-reversi-transcript`), so that a change to what restore prints shows this copy too. The copies in `verify/ruleset/` are deliberately not registered: they are held still by not being edited, and a detector for documents nobody may change buys nothing.

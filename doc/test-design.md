@@ -1,4 +1,4 @@
-# `ruledger/test-design/v1`
+# `ruledger/test-design/v2`
 
 Written for: someone reading or writing a test design by hand, or writing something that
 reads one.
@@ -19,7 +19,7 @@ means that, and `settings` holds that number.
 
 ```json
 {
-  "$schema": "ruledger/test-design/v1",
+  "$schema": "ruledger/test-design/v2",
   "ruleSet": "reversi@1.0.0",
   "settings": { "states": 3000, "candidates": 10000, "outcomes": 64 },
   "observed": ["board", "turn", "passes"],
@@ -32,7 +32,7 @@ means that, and `settings` holds that number.
 
 | key | |
 |---|---|
-| `$schema` | `ruledger/test-design/v1`, and a document without it is refused rather than guessed at |
+| `$schema` | `ruledger/test-design/v2`, and a document without it is refused rather than guessed at. A `ruledger/test-design/v1` document is read as one: v2 adds a move that waits for a value, and a v1 document has none |
 | `ruleSet` | what the rule set calls itself, as `id@version` |
 | `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree. Each of the three leaves a mark where it bit: `"to": null`, `truncated`, `followed` |
 | `observed` | the state paths two positions have to agree on to be the same position, in the order the rule set's `state.schema` declares them |
@@ -71,7 +71,7 @@ figure and no number standing in for how much of a rule set a design covers.
 | `from` | the state this one was first reached from. Absent on `#0` |
 | `by` | the input that first reached it, written `place(at: e6)`. Absent on `#0` |
 | `state` | the position itself, as a `rulealize/state/v1` document |
-| `evaluated` | how many candidates had their guard evaluated to find `moves` |
+| `evaluated` | how many candidates had their guard evaluated to find `moves`, and how many values were tried for a parameter left open |
 | `truncated` | present and `true` only when the search for legal inputs stopped at `candidates` |
 | `terminal` | present only when the rules call this state final. It holds `result`, which may be `null` |
 | `moves` | every input that is legal here, in the order the runtime offered them |
@@ -93,8 +93,9 @@ leads (below). Nothing else is written down, because nothing else can be checked
 | key | |
 |---|---|
 | `input` | the name of the input |
-| `args` | what it was called with, by parameter name, each in the text form the runtime writes. Absent when the input takes none |
+| `args` | what it was called with, by parameter name, each in the text form the runtime writes — a value for a parameter left open included. Absent when the input takes none |
 | `actor` | whose move it is. Absent where the rule set does not say |
+| `open` | the parameters it is still waiting for, in declared order. Present only on a move the walk had no value for; see below |
 | `to` / `lands` | where applying it goes, in one of the shapes below |
 | `followed` | how much of the draw `lands` is. Present only when `outcomes` cut it short; absent means all of it |
 
@@ -103,7 +104,8 @@ why a field only `actor` reads is still among the `observed`.
 
 ### Where it goes
 
-Four shapes, and they mean four different things.
+Four shapes, and they mean four different things; a fifth, a move waiting for a value, is
+below with the parameter it waits for.
 
 | | |
 |---|---|
@@ -115,6 +117,28 @@ Four shapes, and they mean four different things.
 The last is the walk's decision and not the rule set's. What the rules still allow in a
 finished position is theirs to say, and leaving the moves out would make stopping look like
 something they decided.
+
+### A parameter left open
+
+A parameter with a `domain` arrives with its values enumerated, and each is a move of its own.
+A parameter left `open` does not: its value comes from outside, and the runtime offers the move
+with the value still to come. The walk does one of two things with it, and never guesses.
+
+Where the schema it is open to admits few enough values to name — an enumeration, a boolean, a
+whole number between two bounds — every one of them is tried, exactly as a domain's would be,
+and each the rules take is a move with its value in `args`. What an input's `validate` refuses
+is not legal, so it is not there.
+
+Where the schema does not, as with text, the move is written down as legal and waiting, and not
+followed:
+
+```json
+{ "input": "setName", "open": ["to"] }
+```
+
+It is followed only with a value a person wrote as a choice (below), and then it is there twice:
+waiting, because the rules still take any other value, and with the value, going where that
+value leads.
 
 ```json
 {
@@ -183,7 +207,7 @@ The one place a person writes.
 |---|---|
 | `state` | the state to choose from, written either as how the walk arrives there — `#0 + submit` — or as the number that state has in the design being read |
 | `input` | the name of the input to take first |
-| `args` | what to call it with. Absent when the input takes none |
+| `args` | what to call it with. Absent when the input takes none. For a parameter left open, the value to follow it with |
 | `carried` | `yes`, `not legal here`, or `not reached`. Written by Ruledger; absent means `yes` |
 
 Writing one by hand needs `state` and `input`, and nothing else. Ruledger writes `state`
@@ -194,6 +218,12 @@ survive the rule set changing.
 downstream of a choice is worked out again from the rules. There is nowhere in this document
 to write an observation, because an observation written by hand would be the only thing in a
 test design that could be wrong.
+
+**A choice is also how a value nobody could enumerate gets walked.** An edit that gives a
+value for every parameter a move leaves open — `{ "state": "#0", "input": "setName", "args":
+{ "to": "alice" } }` — is followed with that value, and first. It is still a choice and not an
+observation: whether `alice` is a legal name is worked out from the rules, and a value the
+rules refuse is `not legal here`.
 
 **A choice that could not be taken stays in the file, with `carried` saying which of two
 ways it went missing.** It is never dropped, and it never falls back to the input the

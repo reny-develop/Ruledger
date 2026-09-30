@@ -45,7 +45,7 @@
     set of components the runtime then refuses.
   -->
   <ItemGroup>
-    <PackageReference Include="Rulealize" Version="0.8.0" />
+    <PackageReference Include="Rulealize" Version="0.11.0" />
   </ItemGroup>
 
   <ItemGroup>

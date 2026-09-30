@@ -35,7 +35,7 @@ namespace Ruledger.Tests
         {
             JsonElement design = Parse(Derive("approval").ToJson());
 
-            Assert.Equal("ruledger/test-design/v1", design.GetProperty("$schema").GetString());
+            Assert.Equal("ruledger/test-design/v2", design.GetProperty("$schema").GetString());
             Assert.Equal("approval@1.0.0", design.GetProperty("ruleSet").GetString());
             Assert.Equal(300, design.GetProperty("settings").GetProperty("states").GetInt32());
             Assert.Equal(["stage"], design.GetProperty("observed").EnumerateArray().Select(field => field.GetString()));
