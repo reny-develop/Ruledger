@@ -9,7 +9,7 @@ One C# class library (`src/Ruledger/`, `net10.0`, nullable + implicit usings, a 
 
 **Releasing, in order, because the order is what goes wrong.** The README is packed *into* the package and nuget.org cannot replace it afterwards, so every document is correct on disk **before** `dotnet pack`, never after. Then: raise `<Version>` in `src/Ruledger.Cli/Ruledger.Cli.csproj`, which is the only place carrying the number; `dotnet pack -c Release -o artifacts`; open the `.nupkg` and read the README and the nuspec out of it; install the package itself with `--add-source` and run the three commands; then push. No document names the current version, so that a release never needs an edit that would itself need another release.
 
-The `doc-sync` machinery in the workspace covers folders named `Rulealize*` and does not reach here. The discipline still applies; nothing runs it for you.
+The `doc-sync` machinery in the workspace covers folders named `Rulealize*` and does not reach here, on purpose: Ruledger is frozen as the proof of v1, and its pins of Rulealize and the plugins record what that proof ran on rather than lagging behind the workspace. The discipline still applies to anything changed here; nothing runs it for you.
 
 ## Fixtures
 `verify/ruleset/` holds the documents the measurements are about. Some were copied from `Rulealize/ruleset/` and the rest were written here.
@@ -76,4 +76,4 @@ The twenty choices the carry-over measurements are about are fixed in `verify/ch
 
 ## Not decided
 - **How `ruledger/test-design/v1` gets a version.** Whether the walk becomes a recorded setting rides on this. There is one walk, so it is not recorded; add a second and an old test design can no longer say which one produced it — raise the schema version to tell them apart, or add a settings field. Decide it then, not now.
-- **Registering both repositories in `docmap.json`.** The README's table of what v1 does and the sibling README restate each other in places. Deferred. The copies in `verify/ruleset/` are deliberately not registered: they are held still by not being edited, and a detector for documents nobody may change buys nothing.
+- **Registering both repositories in `docmap.json`.** The README's table of what v1 does and the sibling README restate each other in places. Deferred. What is registered is the one fact Ruledger shares with Rulealize: the tutorial's `rulealize restore` transcript (`restore-reversi-transcript`), so that a change to what restore prints shows this copy too. The copies in `verify/ruleset/` are deliberately not registered: they are held still by not being edited, and a detector for documents nobody may change buys nothing.
