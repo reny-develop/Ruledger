@@ -32,7 +32,8 @@ namespace Ruledger
             int common,
             IReadOnlyList<StateChange> changed,
             IReadOnlyList<TestDesignState> gone,
-            IReadOnlyList<TestDesignState> appeared)
+            IReadOnlyList<TestDesignState> appeared,
+            IReadOnlyList<(Admission Before, Admission After)> admitsMoved)
         {
             Before = before;
             After = after;
@@ -40,6 +41,7 @@ namespace Ruledger
             Changed = changed;
             Gone = gone;
             Appeared = appeared;
+            AdmitsMoved = admitsMoved;
         }
 
         /// <summary>Gets the test design that was applied.</summary>
@@ -60,6 +62,14 @@ namespace Ruledger
         /// <summary>Gets the states only the new test design has.</summary>
         public IReadOnlyList<TestDesignState> Appeared { get; }
 
+        /// <summary>Gets the open parameters whose schema admits something else now, each as it was and as it is.</summary>
+        /// <remarks>
+        /// Only parameters both test designs record. One only the new walk met is a move it
+        /// reached and the old did not, which the states already say; and a test design written
+        /// before this was recorded has none, which is not the rules having changed.
+        /// </remarks>
+        public IReadOnlyList<(Admission Before, Admission After)> AdmitsMoved { get; }
+
         /// <summary>Gets a value indicating whether the two versions are compared on the same state.</summary>
         /// <remarks>
         /// False says that the change moved which fields an observation depends on, so the two
@@ -70,7 +80,7 @@ namespace Ruledger
         public bool ComparedTheSameWay => Before.Observed.SequenceEqual(After.Observed, StringComparer.Ordinal);
 
         /// <summary>Gets a value indicating whether the new version decides everything the old test design says it does.</summary>
-        public bool IsEmpty => Changed.Count == 0 && Gone.Count == 0 && Appeared.Count == 0;
+        public bool IsEmpty => Changed.Count == 0 && Gone.Count == 0 && Appeared.Count == 0 && AdmitsMoved.Count == 0;
 
         /// <summary>Applies a test design to a version of the rule set, which is to say diffs the two.</summary>
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
@@ -167,7 +177,15 @@ namespace Ruledger
                 .Where(at => !walked.Contains(now[at]))
                 .Select(at => after.States[at])];
 
-            return new TestDesignDiff(before, after, common, changed, gone, appeared);
+            (Admission Before, Admission After)[] admitsMoved =
+            [
+                .. after.Admits
+                    .Select(now => (Before: before.Admits.FirstOrDefault(was => was.Input == now.Input && was.Parameter == now.Parameter), After: now))
+                    .Where(static pair => pair.Before is not null && pair.Before.Schema != pair.After.Schema)
+                    .Select(static pair => (pair.Before!, pair.After)),
+            ];
+
+            return new TestDesignDiff(before, after, common, changed, gone, appeared, admitsMoved);
         }
 
         // A choice names a state, and a state has two names: the number it has in the test design a
@@ -240,9 +258,19 @@ namespace Ruledger
                 || !string.Equals(before.Result, after.Result, StringComparison.Ordinal);
             bool truncation = before.Truncated != after.Truncated;
 
+            // A value that went from refused to legal, or the other way, is already gained or
+            // lost above; what is left to say is a refusal that came or went on its own, or
+            // one whose codes moved.
+            HashSet<string> said = [.. lost.Concat(gained).Select(static move => move.Text)];
+            HashSet<string> was = [.. before.Refused.Select(static each => each.ToString())];
+            HashSet<string> now = [.. after.Refused.Select(static each => each.ToString())];
+            List<Refusal> refusing = [.. after.Refused.Where(each => !was.Contains(each.ToString()) && !said.Contains(each.Text))];
+            List<Refusal> notRefusing = [.. before.Refused.Where(each => !now.Contains(each.ToString()) && !said.Contains(each.Text))];
+
             return lost.Count == 0 && gained.Count == 0 && moved.Count == 0 && !ending && !truncation
+                && refusing.Count == 0 && notRefusing.Count == 0
                 ? null
-                : new StateChange(before, after, lost, gained, moved, ending, truncation);
+                : new StateChange(before, after, lost, gained, moved, ending, truncation, refusing, notRefusing);
         }
 
         private static bool Same(Move move, Move other) =>
@@ -298,7 +326,9 @@ namespace Ruledger
             IReadOnlyList<Move> gained,
             IReadOnlyList<MoveChange> moved,
             bool ending,
-            bool truncation)
+            bool truncation,
+            IReadOnlyList<Refusal>? refusing = null,
+            IReadOnlyList<Refusal>? notRefusing = null)
         {
             Name = before.Name;
             Before = before;
@@ -308,6 +338,8 @@ namespace Ruledger
             Moved = moved;
             EndingMoved = ending;
             TruncationMoved = truncation;
+            Refusing = refusing ?? [];
+            NotRefusing = notRefusing ?? [];
         }
 
         /// <summary>Gets how the walk arrives here, which is what this state is called in both test designs.</summary>
@@ -332,6 +364,12 @@ namespace Ruledger
 
         /// <summary>Gets the inputs that are still legal here and lead somewhere else.</summary>
         public IReadOnlyList<MoveChange> Moved { get; }
+
+        /// <summary>Gets the refusals the new test design has here and the previous did not, where the value is not gained or lost.</summary>
+        public IReadOnlyList<Refusal> Refusing { get; }
+
+        /// <summary>Gets the refusals the previous test design had here and the new does not, where the value is not gained or lost.</summary>
+        public IReadOnlyList<Refusal> NotRefusing { get; }
 
         /// <summary>Gets a value indicating whether the two disagree about the state being final, or about its result.</summary>
         public bool EndingMoved { get; }
@@ -372,6 +410,9 @@ namespace Ruledger
             {
                 what.Add(After.Truncated ? "stopped at the limit" : "no longer stopped at the limit");
             }
+
+            what.AddRange(Refusing.Select(static each => $"now {each}"));
+            what.AddRange(NotRefusing.Select(static each => $"no longer {each}"));
 
             // Said the way the test design being applied says it, because that is the one the
             // person has in front of them. The whole name is in Name, and past a few steps in

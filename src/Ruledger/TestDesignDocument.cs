@@ -70,6 +70,7 @@ namespace Ruledger
 
                 WriteNames(writer, "observed", design.Observed);
                 WriteNames(writer, "collapsed", design.Collapsed);
+                WriteAdmits(writer, design.Admits);
                 writer.WriteNumber("unreached", design.Unreached);
 
                 WriteEdits(writer, design.Edits);
@@ -112,7 +113,8 @@ namespace Ruledger
                 ReadNames(root, "collapsed"),
                 [.. root.GetProperty("states").EnumerateArray().Select(ReadState)],
                 [.. root.GetProperty("edits").EnumerateArray().Select(ReadEdit)],
-                root.GetProperty("unreached").GetInt32());
+                root.GetProperty("unreached").GetInt32(),
+                ReadAdmits(root));
         }
 
         private static void WriteNames(Utf8JsonWriter writer, string name, IReadOnlyList<string> names)
@@ -124,6 +126,45 @@ namespace Ruledger
             }
 
             writer.WriteEndArray();
+        }
+
+        // By input, then by parameter, in the order the walk met them. Left out where nothing
+        // is open, so a rule set without an open parameter writes what it always wrote.
+        private static void WriteAdmits(Utf8JsonWriter writer, IReadOnlyList<Admission> admits)
+        {
+            if (admits.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartObject("admits");
+            foreach (IGrouping<string, Admission> input in admits.GroupBy(static each => each.Input))
+            {
+                writer.WriteStartObject(input.Key);
+                foreach (Admission each in input)
+                {
+                    writer.WritePropertyName(each.Parameter);
+                    Embed(writer, each.Schema);
+                }
+
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndObject();
+        }
+
+        private static IReadOnlyList<Admission> ReadAdmits(JsonElement root)
+        {
+            if (!root.TryGetProperty("admits", out JsonElement admits) || admits.ValueKind != JsonValueKind.Object)
+            {
+                return [];
+            }
+
+            return
+            [
+                .. admits.EnumerateObject().SelectMany(static input => input.Value.EnumerateObject().Select(parameter =>
+                    new Admission(input.Name, parameter.Name, JsonSerializer.Serialize(parameter.Value)))),
+            ];
         }
 
         private static void WriteEdits(Utf8JsonWriter writer, IReadOnlyList<EditResult> edits)
@@ -198,6 +239,23 @@ namespace Ruledger
             }
 
             writer.WriteEndArray();
+
+            // Beside the moves rather than among them, because `moves` is what is legal and
+            // these are not. Left out where nothing was refused.
+            if (state.Refused.Count > 0)
+            {
+                writer.WriteStartArray("refused");
+                foreach (Refusal refusal in state.Refused)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("input", refusal.Input);
+                    WriteArguments(writer, refusal.Arguments);
+                    WriteNames(writer, "codes", refusal.Codes);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+            }
             writer.WriteEndObject();
         }
 
@@ -321,7 +379,13 @@ namespace Ruledger
                     : null,
                 state.GetProperty("evaluated").GetInt32(),
                 state.TryGetProperty("truncated", out JsonElement truncated) && truncated.GetBoolean(),
-                [.. state.GetProperty("moves").EnumerateArray().Select(ReadMove)]);
+                [.. state.GetProperty("moves").EnumerateArray().Select(ReadMove)],
+                state.TryGetProperty("refused", out JsonElement refused)
+                    ? [.. refused.EnumerateArray().Select(static each => new Refusal(
+                        each.GetProperty("input").GetString() ?? string.Empty,
+                        ReadArguments(each),
+                        ReadNames(each, "codes")))]
+                    : null);
 
         private static Move ReadMove(JsonElement move)
         {

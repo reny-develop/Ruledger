@@ -38,7 +38,7 @@ English keeps "document", which is what Rulealize calls the four kinds it reads.
 ## What a test design may say
 Three things are observable about a state and only those are written down: which inputs are legal, whether it is final and with what result, and where each legal input leads. A legal input is its name, its arguments and whose it is. A value `validate` refuses is not a legal argument, so `validate` is read for what is observed as the guard is.
 
-A parameter left open is walked with every value its schema admits where those are few enough to name, and otherwise only with values a person wrote as choices; without one the move is written down as waiting and not followed. The machine never makes a value up.
+A parameter left open is walked with every value its schema admits where those are few enough to name, and otherwise only with values a person wrote as choices; without one the move is written down as waiting and not followed. The machine never makes a value up. A value tried and refused is written beside the moves with the codes that refused it, and what each open parameter admits is written once at the top: a move waiting for a value is one move whatever its schema allows, so without those a relaxed clause or a widened bound would change nothing a test design says.
 
 The one place a person writes is a choice — from this state, take this input first. Everything downstream of it is worked out again. An observation written by hand would be the only thing in a test design that can be wrong, so there is nowhere to write one.
 

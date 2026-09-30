@@ -37,6 +37,7 @@ means that, and `settings` holds that number.
 | `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree. Each of the three leaves a mark where it bit: `"to": null`, `truncated`, `followed` |
 | `observed` | the state paths two positions have to agree on to be the same position, in the order the rule set's `state.schema` declares them |
 | `collapsed` | the state paths left out of that comparison because nothing observable reads them, in the same order |
+| `admits` | what each parameter the rule set leaves open admits, by input and parameter: the op of its schema and the bounds beside it, as the runtime answered them. Absent where nothing is left open; see below |
 | `unreached` | how many landings the walk had no states left for: one per `"to": null` below |
 | `edits` | the choices a person made, and what became of each |
 | `states` | the states, in the order the walk first arrived at them |
@@ -75,6 +76,7 @@ figure and no number standing in for how much of a rule set a design covers.
 | `truncated` | present and `true` only when the search for legal inputs stopped at `candidates` |
 | `terminal` | present only when the rules call this state final. It holds `result`, which may be `null` |
 | `moves` | every input that is legal here, in the order the runtime offered them |
+| `refused` | the values for a parameter left open that were tried here and refused, each with the codes that refused it. Absent where none were |
 
 `from` and `by` are what make a state's real name: following them back to `#0` spells out
 how the walk arrived, and that is the name that still means this state after the rule set
@@ -139,6 +141,27 @@ followed:
 It is followed only with a value a person wrote as a choice (below), and then it is there twice:
 waiting, because the rules still take any other value, and with the value, going where that
 value leads.
+
+A value tried and refused is not a move, and it is not left out either. It goes beside the
+moves, with what refused it:
+
+```json
+"refused": [ { "input": "setParty", "args": { "size": "1" }, "codes": ["party.unchanged"] } ]
+```
+
+A refusal is as much an answer as a move, and the one a later version can take back without
+the list of moves showing it: relax the clause, and a value that was turned away is taken.
+
+What each open parameter admits is written once, at the top, rather than in every state that
+offers it — it is read off the schema, which the position does not change:
+
+```json
+"admits": { "setParty": { "size": { "op": "type.int", "min": 1, "max": 6 } } }
+```
+
+A move waiting for a value is one move whatever its schema allows, so this is where a bound
+widened, a choice added or a text limit raised shows. The keys are the runtime's and are
+carried, not read.
 
 ```json
 {
@@ -265,8 +288,8 @@ states differ as documents, and all twenty choices survive.
 Two designs walked with different `settings` are not compared at all. They visited different
 states because they were told to, and none of that is the rule set deciding differently.
 
-A state both designs have is **decided differently** when any of five things about it moved,
-and those five are the three observables and the two limits that can cut them short:
+A state both designs have is **decided differently** when any of these moved: the three
+observables, what was refused there, and the limit that can cut the first of them short:
 
 | | |
 |---|---|
@@ -275,6 +298,10 @@ and those five are the three observables and the two limits that can cut them sh
 | a legal input lands somewhere else | where the rules draw, this is asked of each branch: one appearing or going, a different value drawn, the same branch at a different chance, or a different `followed` |
 | its ending moved | `terminal` gained, lost, or a different `result` |
 | its `truncated` moved | it started or stopped hitting `candidates`, so the two say different amounts about it |
+| a refusal came, went, or changed its codes | a value that moved between refused and legal is already a legal input lost or gained, and is said once |
+
+What an open parameter admits is compared as well, once per parameter rather than per state,
+where both designs record it; one that moved is a difference like any of these.
 
 A state only one of the two designs has is not in that count. It is reported on its own line
 either way, never left as a number: the walk stopped before reaching it this time, or it

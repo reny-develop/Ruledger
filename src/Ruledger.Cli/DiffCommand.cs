@@ -97,6 +97,8 @@ namespace Ruledger.Cli
             Write(diff.Changed.Select(change => $"{Named(change)}: {Said(change)}"));
             Write(diff.Gone.Select(state => $"{state}: not walked any more"));
             Write(diff.Appeared.Select(state => $"{state}: reached now, and was not"));
+            Write(diff.AdmitsMoved.Select(pair =>
+                $"{pair.After.Input}({pair.After.Parameter}) admits {pair.After.Schema}, was {pair.Before.Schema}"));
 
             if (diff.After.Edits.Count > 0)
             {
@@ -162,6 +164,9 @@ namespace Ruledger.Cli
             {
                 what.Add($"{Ending(change.After)}, was {Ending(change.Before)}");
             }
+
+            what.AddRange(change.Refusing.Select(static each => $"now {each}"));
+            what.AddRange(change.NotRefusing.Select(static each => $"no longer {each}"));
 
             if (change.TruncationMoved)
             {

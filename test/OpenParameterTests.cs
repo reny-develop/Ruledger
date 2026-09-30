@@ -87,6 +87,69 @@ namespace Ruledger.Tests
             Assert.Contains("\"open\": [", design.ToJson(), StringComparison.Ordinal);
         }
 
+        [Fact]
+        public void WhatEachOpenParameterAdmitsIsRecordedOnceAsTheRuntimeAnsweredIt()
+        {
+            TestDesign design = Derive(new TestDesignEdit("#0", "setName", Arguments(("to", "alice"))));
+
+            Assert.Equal(
+                [
+                    "setName(to) admits {\"op\":\"type.string\",\"maxLength\":12}",
+                    "setParty(size) admits {\"op\":\"type.int\",\"min\":1,\"max\":6}",
+                    "note(what) admits {\"op\":\"type.enum\",\"values\":[\"quiet\",\"near the door\"]}",
+                ],
+                design.Admits.Select(each => each.ToString()));
+
+            Assert.Equal(design.Admits, TestDesign.FromJson(design.ToJson()).Admits);
+        }
+
+        [Fact]
+        public void ALimitOnTextThatMovedIsADifferenceThoughNoMoveDid()
+        {
+            // The name is never enumerated, so no move shows twelve becoming twenty. What the
+            // parameter admits does.
+            string design = Derive().ToJson();
+            string longer = Vocabulary.Read("signup").Replace("\"maxLength\": 12", "\"maxLength\": 20", StringComparison.Ordinal);
+
+            TestDesignDiff diff = TestDesignDiff.Of(Vocabulary.Runtime, design, longer);
+
+            Assert.Empty(diff.Changed);
+            (Admission before, Admission after) = Assert.Single(diff.AdmitsMoved);
+            Assert.Equal("{\"op\":\"type.string\",\"maxLength\":12}", before.Schema);
+            Assert.Equal("{\"op\":\"type.string\",\"maxLength\":20}", after.Schema);
+            Assert.False(diff.IsEmpty);
+        }
+
+        [Fact]
+        public void AValueTriedAndRefusedIsWrittenDownWithWhatRefusedIt()
+        {
+            TestDesign design = Derive(new TestDesignEdit("#0", "setName", Arguments(("to", "alice"))));
+
+            Assert.Equal(["setParty(size: 1) refused: party.unchanged"], design.States[1].Refused.Select(each => each.ToString()));
+            Assert.Contains(
+                design.States.SelectMany(state => state.Refused),
+                each => each.ToString() == "note(what: quiet) refused: wants.tooManyForQuiet");
+
+            TestDesign read = TestDesign.FromJson(design.ToJson());
+            Assert.Equal(
+                design.States.SelectMany(state => state.Refused).Select(each => each.ToString()),
+                read.States.SelectMany(state => state.Refused).Select(each => each.ToString()));
+        }
+
+        [Fact]
+        public void ARefusalWhoseCodeMovedIsADifference()
+        {
+            string design = Derive(new TestDesignEdit("#0", "setName", Arguments(("to", "alice")))).ToJson();
+            string renamed = Vocabulary.Read("signup").Replace("\"party.unchanged\"", "\"party.same\"", StringComparison.Ordinal);
+
+            TestDesignDiff diff = TestDesignDiff.Of(Vocabulary.Runtime, design, renamed);
+
+            StateChange first = diff.Changed[0];
+            Assert.Equal(["setParty(size: 1) refused: party.same"], first.Refusing.Select(each => each.ToString()));
+            Assert.Equal(["setParty(size: 1) refused: party.unchanged"], first.NotRefusing.Select(each => each.ToString()));
+            Assert.Empty(first.Gained);
+        }
+
         private static TestDesign Derive(params TestDesignEdit[] edits) =>
             TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read("signup"), null, new WalkSettings(States: 300), edits);
 

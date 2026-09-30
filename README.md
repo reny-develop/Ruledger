@@ -67,7 +67,7 @@ way to check one is to run it.
 | Derive the test design, filling in the concrete values and the expected results | **In** |
 | Apply the previous test design to a new version of the rule set and report what changed | **In** |
 | Carry a human's edits across a change to the rule set | **In** |
-| Walk a parameter the rule set leaves open | **In**. Every value its schema admits where those can be named — an enumeration, a boolean, a bounded whole number — and otherwise only the values a person wrote as choices. It never makes one up |
+| Walk a parameter the rule set leaves open | **In**. Every value its schema admits where those can be named — an enumeration, a boolean, a bounded whole number — and otherwise only the values a person wrote as choices. It never makes one up. The values refused are written down with what refused them, and what each parameter admits once |
 | Verify anything outside the rule set — screens, persistence, integrations | Out. Not a limit in principle: what Ruledger reaches is what the rule set expresses, and that is extended by adding vocabulary, not by changing Ruledger |
 | Visualize or edit the rule set | Out. A rule set is still JSON, which is hard to hand-write even for an engineer |
 | Record approvals | Out. Approval is committing the test design; expiry is the diff coming back non-empty. Git already does both |

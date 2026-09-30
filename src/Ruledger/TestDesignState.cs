@@ -1,6 +1,11 @@
 // Copyright (c) 2026 Reny
 // Licensed under the Apache License, Version 2.0.
 
+using System.Text;
+using System.Text.Json;
+using Rulealize;
+using Rulealize.Abstraction.Value;
+
 namespace Ruledger
 {
     /// <summary>One state the walk visited, and everything that can be observed there.</summary>
@@ -20,7 +25,8 @@ namespace Ruledger
             string? result,
             int evaluated,
             bool truncated,
-            IReadOnlyList<Move> moves)
+            IReadOnlyList<Move> moves,
+            IReadOnlyList<Refusal>? refused = null)
         {
             Name = name;
             From = from;
@@ -31,6 +37,7 @@ namespace Ruledger
             Evaluated = evaluated;
             Truncated = truncated;
             Moves = moves;
+            Refused = refused ?? [];
         }
 
         /// <summary>Gets what this state is called, which is its position in the walk.</summary>
@@ -87,6 +94,14 @@ namespace Ruledger
         /// walk's decision, and it is not written into the observation.
         /// </remarks>
         public IReadOnlyList<Move> Moves { get; }
+
+        /// <summary>Gets the values for a parameter left open that were tried here and refused, in the order they were tried.</summary>
+        /// <remarks>
+        /// Only for values the walk tried: every value of a schema it could name, and the values a
+        /// person wrote. What the rules refused a value with is part of the answer, so the codes
+        /// are carried; a value refused by something other than a clause has none.
+        /// </remarks>
+        public IReadOnlyList<Refusal> Refused { get; }
 
         /// <inheritdoc />
         public override string ToString() =>
@@ -214,5 +229,108 @@ namespace Ruledger
 
         /// <inheritdoc />
         public override string ToString() => To ?? "(not reached)";
+    }
+
+    /// <summary>A value for a parameter left open that was tried in a state and refused.</summary>
+    public sealed class Refusal
+    {
+        internal Refusal(string input, IReadOnlyDictionary<string, string> arguments, IReadOnlyList<string> codes)
+        {
+            Input = input;
+            Arguments = arguments;
+            Codes = codes;
+        }
+
+        /// <summary>Gets the name of the input.</summary>
+        public string Input { get; }
+
+        /// <summary>Gets what it was tried with, by parameter name, in the text form the runtime writes.</summary>
+        public IReadOnlyDictionary<string, string> Arguments { get; }
+
+        /// <summary>Gets the codes the rules refused it with, in the order the clauses are written.</summary>
+        public IReadOnlyList<string> Codes { get; }
+
+        /// <summary>Gets the input and its arguments, written as <see cref="Move.Text"/> would write them.</summary>
+        public string Text => Move.Write(Input, Arguments);
+
+        /// <inheritdoc />
+        public override string ToString() =>
+            Codes.Count == 0 ? $"{Text} refused" : $"{Text} refused: {string.Join(", ", Codes)}";
+    }
+
+    /// <summary>What a parameter the rule set leaves open admits, as the runtime answered it.</summary>
+    /// <param name="Input">The input's name.</param>
+    /// <param name="Parameter">The parameter's name.</param>
+    /// <param name="Schema">
+    /// The op of the schema admitting its value and the bounds that schema declares, as one JSON
+    /// object: <c>{"op":"type.int","min":1,"max":6}</c>. Carried as the runtime gave them;
+    /// nothing here reads the keys.
+    /// </param>
+    public sealed record Admission(string Input, string Parameter, string Schema)
+    {
+        /// <inheritdoc />
+        public override string ToString() => $"{Input}({Parameter}) admits {Schema}";
+
+        internal static Admission Of(string input, OpenParameter open)
+        {
+            using MemoryStream buffer = new();
+            using (Utf8JsonWriter writer = new(buffer))
+            {
+                writer.WriteStartObject();
+                writer.WriteString("op", open.Op);
+                foreach (KeyValuePair<string, RuleValue> field in open.Description.Fields)
+                {
+                    writer.WritePropertyName(field.Key);
+                    Write(writer, field.Value);
+                }
+
+                writer.WriteEndObject();
+            }
+
+            return new Admission(input, open.Name, Encoding.UTF8.GetString(buffer.ToArray()));
+        }
+
+        private static void Write(Utf8JsonWriter writer, RuleValue value)
+        {
+            switch (value)
+            {
+                case TextValue text:
+                    writer.WriteStringValue(text.Value);
+                    break;
+
+                case NumberValue number:
+                    writer.WriteRawValue(RuleValue.FormatNumber(number.Value));
+                    break;
+
+                case BooleanValue flag:
+                    writer.WriteBooleanValue(flag.Value);
+                    break;
+
+                case SequenceValue sequence:
+                    writer.WriteStartArray();
+                    foreach (RuleValue each in sequence)
+                    {
+                        Write(writer, each);
+                    }
+
+                    writer.WriteEndArray();
+                    break;
+
+                case RecordValue record:
+                    writer.WriteStartObject();
+                    foreach (KeyValuePair<string, RuleValue> field in record.Fields)
+                    {
+                        writer.WritePropertyName(field.Key);
+                        Write(writer, field.Value);
+                    }
+
+                    writer.WriteEndObject();
+                    break;
+
+                default:
+                    writer.WriteNullValue();
+                    break;
+            }
+        }
     }
 }

@@ -36,7 +36,8 @@ namespace Ruledger
             IReadOnlyList<string> collapsed,
             IReadOnlyList<TestDesignState> states,
             IReadOnlyList<EditResult> edits,
-            int unreached)
+            int unreached,
+            IReadOnlyList<Admission>? admits = null)
         {
             RuleSet = ruleSet;
             Settings = settings;
@@ -45,6 +46,7 @@ namespace Ruledger
             States = states;
             Edits = edits;
             Unreached = unreached;
+            Admits = admits ?? [];
         }
 
         /// <summary>Gets what the rule set calls itself, as <c>id@version</c>.</summary>
@@ -68,6 +70,23 @@ namespace Ruledger
         /// never quietly dropped back to what the machine would have picked.
         /// </remarks>
         public IReadOnlyList<EditResult> Edits { get; }
+
+        /// <summary>Gets what each parameter the rule set leaves open admits, in the order the walk first met it.</summary>
+        /// <remarks>
+        /// <para>
+        /// A move waiting for a value is one move whatever its schema allows, so a bound widened
+        /// or a choice added leaves the list of legal moves where it was. Where the walk tried
+        /// every value, the moves beside it show the change; where it could not, as with text,
+        /// nothing else in the test design would. This is what the runtime answered about the
+        /// parameter, carried rather than interpreted, so that what a value may be is observed
+        /// for every open parameter and not only for the ones whose values can be counted.
+        /// </para>
+        /// <para>
+        /// Once per parameter and not per state: it is read off the schema the parameter is open
+        /// to, which the position does not change.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyList<Admission> Admits { get; }
 
         /// <summary>Gets how many landings there were no states left to visit.</summary>
         /// <remarks>
@@ -164,6 +183,7 @@ namespace Ruledger
             // walk and not its size.
             private readonly StringBuilder here = new("#0");
             private int unreached;
+            private readonly List<Admission> admits = [];
 
             public TestDesign Walk()
             {
@@ -196,7 +216,8 @@ namespace Ruledger
                         this.outcomes.TryGetValue(edit, out EditResult? result)
                             ? result
                             : new EditResult(edit, EditOutcome.NotReached))],
-                    this.unreached);
+                    this.unreached,
+                    this.admits);
             }
 
             // A composite keeps each component's state under its alias, and keeps it as a state
@@ -296,6 +317,14 @@ namespace Ruledger
             // refuses to do.
             private void Fill(Entry entry, List<List<Step>> onward, string name, string state, TerminalStatus terminal, ValidInput input)
             {
+                foreach (OpenParameter open in input.Open)
+                {
+                    if (!this.admits.Any(each => each.Input == input.Input && each.Parameter == open.Name))
+                    {
+                        this.admits.Add(Admission.Of(input.Input, open));
+                    }
+                }
+
                 IReadOnlyList<Dictionary<string, JsonNode?>>? every = Every(input.Open, entry);
 
                 if (every is null)
@@ -324,13 +353,23 @@ namespace Ruledger
                     entry.Evaluated++;
 
                     // Applying it is how a value is found to be one the rules admit: what
-                    // `validate` refuses is not a legal move, however the guard answered.
+                    // `validate` refuses is not a legal move, however the guard answered. It
+                    // is written down as refused, with the codes the rules gave, because a
+                    // value that was tried and turned away is as much an answer as one that
+                    // was taken — and the only one a later version can take back without
+                    // the list of legal moves showing it.
                     try
                     {
                         rules.GetOutcomes(document, state, 1);
                     }
+                    catch (InputRejectedException rejected)
+                    {
+                        entry.Refused.Add(new Refusal(input.Input, arguments, [.. rejected.Rejections.Select(static each => each.Code)]));
+                        continue;
+                    }
                     catch (IllegalInputException)
                     {
+                        entry.Refused.Add(new Refusal(input.Input, arguments, []));
                         continue;
                     }
 
@@ -591,8 +630,10 @@ namespace Ruledger
 
                 public List<Step> Ahead { get; } = [];
 
+                public List<Refusal> Refused { get; } = [];
+
                 public TestDesignState Close() =>
-                    new(name, from, by, state, IsTerminal, Result, Evaluated, Truncated, Moves);
+                    new(name, from, by, state, IsTerminal, Result, Evaluated, Truncated, Moves, Refused);
             }
         }
     }
