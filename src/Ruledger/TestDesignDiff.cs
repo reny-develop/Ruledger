@@ -76,8 +76,11 @@ namespace Ruledger
         /// walks did not rejoin in the same places. The diff below it is still every difference
         /// there is, but part of it is the walk having gone elsewhere rather than the rules
         /// having decided differently, and it is said here rather than left to be guessed at.
+        /// The order the schema declares them in is not part of it: a walk builds every key in
+        /// one order, whichever it is, so the same fields declared otherwise rejoin in the same
+        /// places.
         /// </remarks>
-        public bool ComparedTheSameWay => Before.Observed.SequenceEqual(After.Observed, StringComparer.Ordinal);
+        public bool ComparedTheSameWay => Before.Observed.ToHashSet(StringComparer.Ordinal).SetEquals(After.Observed);
 
         /// <summary>Gets a value indicating whether the new version decides everything the old test design says it does.</summary>
         public bool IsEmpty => Changed.Count == 0 && Gone.Count == 0 && Appeared.Count == 0 && AdmitsMoved.Count == 0;

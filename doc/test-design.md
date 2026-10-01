@@ -48,6 +48,8 @@ that it recognises a position it has already been in and writes it down once; co
 states instead would make an audit trail enough to tell two identical positions apart, and a
 rule set that keeps one would never be walked back into a position it had visited. Both lists
 are written down because a diff has to know whether two designs were compared the same way.
+Which fields is what it asks, not their order: the same fields declared in another order are
+the same comparison, since one walk agrees with itself on the order whatever it is.
 
 `unreached` is the only quantity of its kind. It counts the times an input arrived somewhere
 the walk had not been with no states left to spend, and there is no percentage, no coverage

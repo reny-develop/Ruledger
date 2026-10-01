@@ -139,6 +139,28 @@ namespace Ruledger.Tests
             Assert.Equal(3, code);
         }
 
+        // The same fields declared in another order are the same position: within one walk the
+        // key is built in one order whatever it is, so nothing rejoins anywhere else. Written
+        // the other way round by somebody who never saw the first, signup decides the same.
+        [Fact]
+        public void FieldsDeclaredInAnotherOrderAreComparedTheSameWay()
+        {
+            string ruleSet = Copy("signup");
+            string reordered = Path.Combine(this.folder, "signup-reordered.json");
+            File.WriteAllText(reordered, File.ReadAllText(ruleSet).Replace(
+                "\"party\": { \"op\": \"type.int\", \"min\": 1, \"max\": 6 },\n      \"seat\": { \"op\": \"type.enum\", \"values\": [\"window\", \"aisle\"], \"nullable\": true },",
+                "\"seat\": { \"op\": \"type.enum\", \"values\": [\"window\", \"aisle\"], \"nullable\": true },\n      \"party\": { \"op\": \"type.int\", \"min\": 1, \"max\": 6 },",
+                StringComparison.Ordinal));
+            Assert.NotEqual(File.ReadAllText(ruleSet), File.ReadAllText(reordered));
+            string written = Path.Combine(this.folder, "signup.test-design.json");
+            _ = Run(() => DeriveCommand.Run(ruleSet, Plugins, null, null, null, new WalkSettings(States: 3000)));
+
+            (int code, string said) = Run(() => DiffCommand.Run(written, reordered, Plugins, null, write: false));
+
+            Assert.DoesNotContain("not compared on the same state", said, StringComparison.Ordinal);
+            Assert.Equal(0, code);
+        }
+
         [Fact]
         public void DiffAmendsTheTestDesignWhenItIsAskedTo()
         {
