@@ -24,26 +24,45 @@ design.
 
 ## Using it
 
-```sh
-dotnet tool install -g Rulealize.Cli
-dotnet tool install -g Ruledger.Cli
-```
+From a shell, it is [Ruledger.Cli](https://github.com/reny-develop/Ruledger.Cli): `ruledger
+derive`, `ruledger diff` and `ruledger observe`, and its
+[tutorial](https://github.com/reny-develop/Ruledger.Cli/blob/main/doc/tutorial.md) is the half
+hour that shows what this is like — reversi changed one line at a time, then a shift roster,
+ending in a count of what did not happen.
+
+From a program, it is this package, which is what the tool calls:
 
 ```sh
-rulealize restore reversi.json     # fetch the vocabularies the rule set draws on
-ruledger derive reversi.json       # walk it, and write the test design down
-ruledger diff reversi.test-design.json reversi.json   # apply that design to a later version
-ruledger observe reversi.json      # what a position is compared on, and what is dropped
+dotnet add package Ruledger
 ```
 
-`diff` is meant for a build server: it exits 0 when there is nothing to report, 1 when it
-could not be done, 2 when the command line was not understood, and 3 when the rules decided
-differently, a choice could not be carried, or the two versions are not compared on the same
-state.
+```csharp
+using Rulealize;
+using Ruledger;
 
-**[doc/tutorial.md](doc/tutorial.md) is the half hour that shows what this is like** — reversi
-changed one line at a time, then a shift roster, ending in a count of what did not happen.
-[doc/test-design.md](doc/test-design.md) is the form of the document the two of them produce.
+RuleRuntime runtime = new RuleRuntime().LoadPluginsFrom("plugin");
+
+// Walk it, and write the test design down.
+TestDesign design = TestDesign.Derive(runtime, File.ReadAllText("reversi.json"));
+File.WriteAllText("reversi.test-design.json", design.ToJson());
+
+// Apply that design to a later version of the rules, which is the diff.
+TestDesignDiff diff = TestDesignDiff.Of(
+    runtime, File.ReadAllText("reversi.test-design.json"), File.ReadAllText("reversi.json"));
+
+foreach (StateChange change in diff.Changed)
+{
+    // change.Before and change.After are the state as each design has it; Lost, Gained,
+    // Moved, Refusing and NotRefusing are what the rules decide differently there.
+}
+```
+
+A host that shows a diff its own way asks this for it, and gets what changed as the values the
+tool prints its lines from — never a second account of it worked out from two designs.
+`diff.After` is the design the new rules give, with the choices of the one applied carried
+across; what could not be carried is in its `Edits`.
+
+[doc/test-design.md](doc/test-design.md) is the form of the document both of them write.
 
 ## The numbers
 
@@ -85,16 +104,19 @@ is the only quantity reported.
 
 v1 is done and published. The library walks a rule set, works out by itself which state two
 positions are compared on, writes the test design down, applies one to a later version and
-carries the developer's edits across. The command line tool does all of that from a shell.
-The measurements all run. `Ruledger.Cli` is on nuget.org, so the two install lines above
-are what works rather than what will.
+carries the developer's edits across. The measurements all run. `Ruledger` and `Ruledger.Cli`
+are on nuget.org.
 
 Since then it runs on the Rulealize that leaves a parameter open and lets an input `validate`
 its arguments, and the test design it writes is `ruledger/test-design/v2` for the one shape that
 added — a move waiting for a value. A v1 test design is still read.
 
-The tool is C#: it needs the Rulealize runtime, and reading the rule set statically is part of
-the same job, not a separate program in another language.
+Until 1.3.0 the library shipped only inside the tool. It is a package of its own since, and the
+tool has a repository of its own, because a host that draws a diff on a screen has to be handed
+what changed rather than read it back out of lines meant for a person.
+
+It is C#: it needs the Rulealize runtime, and reading the rule set statically is part of the
+same job, not a separate program in another language.
 
 ## License
 
