@@ -111,9 +111,9 @@ Since then it runs on the Rulealize that leaves a parameter open and lets an inp
 its arguments, and the test design it writes is `ruledger/test-design/v2` for the one shape that
 added — a move waiting for a value. A v1 test design is still read.
 
-Until 1.3.0 the library shipped only inside the tool. It is a package of its own since, and the
-tool has a repository of its own, because a host that draws a diff on a screen has to be handed
-what changed rather than read it back out of lines meant for a person.
+Until `Ruledger.Cli` 1.3.0 the library shipped only inside the tool. It is a package of its own
+from 1.0.0, and the tool has a repository of its own, because a host that draws a diff on a screen
+has to be handed what changed rather than read it back out of lines meant for a person.
 
 It is C#: it needs the Rulealize runtime, and reading the rule set statically is part of the
 same job, not a separate program in another language.
