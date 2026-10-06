@@ -154,6 +154,15 @@ moves, with what refused it:
 A refusal is as much an answer as a move, and the one a later version can take back without
 the list of moves showing it: relax the clause, and a value that was turned away is taken.
 
+A value the schema itself does not admit — thirteen letters where the field holds twelve — is
+refused before any clause is asked. Where the parameter names that refusal with `invalid`, its
+code is written like a clause's; where it does not, the rule set has given it no name, and the
+refusal is written with no codes:
+
+```json
+"refused": [ { "input": "setName", "args": { "to": "Christabellas" }, "codes": ["name.malformed"] } ]
+```
+
 What each open parameter admits is written once, at the top, rather than in every state that
 offers it — it is read off the schema, which the position does not change:
 

@@ -137,6 +137,25 @@ namespace Ruledger.Tests
         }
 
         [Fact]
+        public void AValueTheSchemaRefusesIsWrittenDownUnderTheParametersInvalidOrWithNoCode()
+        {
+            // Thirteen letters where the field holds twelve: the schema refuses it before any clause
+            // is asked. Where the parameter names that refusal with `invalid` it is a code like a
+            // clause's; where it does not, there is no code to write down.
+            string named = Vocabulary.Read("signup").Replace(
+                "\"to\": { \"open\": { \"field\": \"name\" } }",
+                "\"to\": { \"open\": { \"field\": \"name\" }, \"invalid\": \"name.malformed\" }",
+                StringComparison.Ordinal);
+            TestDesignEdit tooLong = new("#0", "setName", Arguments(("to", "Christabellas")));
+
+            TestDesign withCode = TestDesign.Derive(Vocabulary.Runtime, named, null, new WalkSettings(States: 300), [tooLong]);
+            TestDesign withNone = Derive(tooLong);
+
+            Assert.Equal(["setName(to: Christabellas) refused: name.malformed"], withCode.States[0].Refused.Select(each => each.ToString()));
+            Assert.Equal(["setName(to: Christabellas) refused"], withNone.States[0].Refused.Select(each => each.ToString()));
+        }
+
+        [Fact]
         public void ARefusalWhoseCodeMovedIsADifference()
         {
             string design = Derive(new TestDesignEdit("#0", "setName", Arguments(("to", "alice")))).ToJson();

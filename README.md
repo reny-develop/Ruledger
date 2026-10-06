@@ -108,7 +108,7 @@ carries the developer's edits across. The measurements all run. `Ruledger` and `
 are on nuget.org.
 
 Since then it runs on the Rulealize that leaves a parameter open and lets an input `validate`
-its arguments, and the test design it writes is `ruledger/test-design/v2` for the one shape that
+its arguments — and name, with `invalid`, the refusal of a value the schema does not admit — and the test design it writes is `ruledger/test-design/v2` for the one shape that
 added — a move waiting for a value. A v1 test design is still read.
 
 Until `Ruledger.Cli` 1.3.0 the library shipped only inside the tool. It is a package of its own
