@@ -62,6 +62,22 @@ tool prints its lines from — never a second account of it worked out from two 
 `diff.After` is the design the new rules give, with the choices of the one applied carried
 across; what could not be carried is in its `Edits`.
 
+A rule set whose initial state is only the shape of a case — who may sign and what may be
+requested both empty until somebody says — offers nothing from there, and is walked from a
+case instead:
+
+```csharp
+TestDesign design = TestDesign.Derive(
+    runtime, File.ReadAllText("signed-request.json"), components,
+    File.ReadAllText("case.state.json"), settings: null, edits: null);
+```
+
+The state is read against the rule set's schema, a composite's components included, like any
+other. It travels in the design as `design.Start`, the document itself rather than where it
+was read from, so whatever replays the design begins where the walk began; and a diff walks
+the new version from it. Choices handed in beside a start are carried one by one, as they are
+across a change to the rules.
+
 [doc/test-design.md](doc/test-design.md) is the form of the document both of them write.
 
 ## The numbers
@@ -72,7 +88,7 @@ Every claim about Ruledger is a number, and every one of them comes out of a run
 dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"
 ```
 
-56 measurements, about four minutes. They walk the rule sets in `verify/ruleset/`, print what
+59 measurements, about four minutes. They walk the rule sets in `verify/ruleset/`, print what
 they found, and fail if any of it has moved. Nothing about this project is a figure somebody
 wrote down once: the numbers in these documents are the numbers that command prints, and the
 way to check one is to run it.
@@ -86,6 +102,7 @@ way to check one is to run it.
 | Derive the test design, filling in the concrete values and the expected results | **In** |
 | Apply the previous test design to a new version of the rule set and report what changed | **In** |
 | Carry a human's edits across a change to the rule set | **In** |
+| Walk from a state of a case rather than where the rule set begins | **In**. For a rule set whose initial state is the shape of a case and offers nothing until one is supplied. The state travels in the test design |
 | Walk a parameter the rule set leaves open | **In**. Every value its schema admits where those can be named — an enumeration, a boolean, a bounded whole number — and otherwise only the values a person wrote as choices. It never makes one up. The values refused are written down with what refused them, and what each parameter admits once |
 | Verify anything outside the rule set — screens, persistence, integrations | Out. Not a limit in principle: what Ruledger reaches is what the rule set expresses, and that is extended by adding vocabulary, not by changing Ruledger |
 | Visualize or edit the rule set | Out. A rule set is still JSON, which is hard to hand-write even for an engineer |
@@ -108,8 +125,9 @@ carries the developer's edits across. The measurements all run. `Ruledger` and `
 are on nuget.org.
 
 Since then it runs on the Rulealize that leaves a parameter open and lets an input `validate`
-its arguments — and name, with `invalid`, the refusal of a value the schema does not admit — and the test design it writes is `ruledger/test-design/v2` for the one shape that
-added — a move waiting for a value. A v1 test design is still read.
+its arguments — and name, with `invalid`, the refusal of a value the schema does not admit — and the test design it writes became `ruledger/test-design/v2` for the one shape that
+added — a move waiting for a value. It is `ruledger/test-design/v3` since a walk can begin in a
+state of a case, which the design carries as `start`. A v2 or v1 test design is still read.
 
 Until `Ruledger.Cli` 1.3.0 the library shipped only inside the tool. It is a package of its own
 from 1.0.0, and the tool has a repository of its own, because a host that draws a diff on a screen

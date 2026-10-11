@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0.
 
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Rulealize;
 using Rulealize.Abstraction;
@@ -87,20 +88,22 @@ namespace Ruledger
 
         /// <summary>Applies a test design to a version of the rule set, which is to say diffs the two.</summary>
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
-        /// <param name="testDesign">A <c>ruledger/test-design/v2</c> document, or a v1 one, derived from an earlier version.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v3</c> document, or a v2 or v1 one, derived from an earlier version.</param>
         /// <param name="ruleSet">The version of the rule set to apply it to, as text.</param>
         /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
         /// <returns>What the new version decides differently, and what became of the choices in the test design.</returns>
         /// <remarks>
-        /// The new walk is given the settings the test design was walked with and the choices
-        /// a person made in it. Both travel in it for this: settings so that the two
-        /// walks are comparable, choices so that a change to the rules does not quietly cost
-        /// somebody their work. What could not be carried is in <see cref="TestDesign.Edits"/> of
-        /// <see cref="After"/>, every one of it, with which of the two ways it was lost.
+        /// The new walk is given the settings the test design was walked with, the state it
+        /// began in, and the choices a person made in it. All three travel in it for this:
+        /// settings and start so that the two walks are comparable, choices so that a change to
+        /// the rules does not quietly cost somebody their work. What could not be carried is in
+        /// <see cref="TestDesign.Edits"/> of <see cref="After"/>, every one of it, with which of
+        /// the two ways it was lost.
         /// </remarks>
         /// <exception cref="JsonException">The text is not JSON.</exception>
         /// <exception cref="InvalidOperationException">The text is not a test design, or a rule set named in <c>uses</c> was not supplied.</exception>
         /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
+        /// <exception cref="RuleDocumentException">The test design began in a state that is not a state of this version.</exception>
         public static TestDesignDiff Of(
             RuleRuntime runtime,
             string testDesign,
@@ -116,7 +119,13 @@ namespace Ruledger
             int[] routes = route.Of(before);
 
             TestDesign after = TestDesign.Derive(
-                runtime, ruleSet, components, before.Settings, Carried(before, route, routes));
+                runtime,
+                ruleSet,
+                components,
+                before.Settings,
+                ObservationScan.Of(ruleSet, components),
+                Carried(before, route, routes),
+                before.Start);
 
             return Between(before, after, route, routes, route.Of(after));
         }
@@ -145,6 +154,16 @@ namespace Ruledger
                 throw new InvalidOperationException(
                     $"These were walked differently — {before.Settings} against {after.Settings} — so what is "
                     + "different between them is not the rule set's doing alone.");
+            }
+
+            // A state is named by how the walk arrived from #0, and #0 is wherever the walk
+            // began, so two walks of two cases share every name and none of the places. Held
+            // against each other they would report the cases differing as the rules differing.
+            if (!SameStart(before.Start, after.Start))
+            {
+                throw new InvalidOperationException(
+                    "These began in different states, so a state named the same in both is not the same state, "
+                    + "and what is different between them is not the rule set's doing alone.");
             }
 
             Dictionary<int, int> arrived = [];
@@ -212,6 +231,24 @@ namespace Ruledger
                     return new TestDesignEdit(state, result.Edit.Input, result.Edit.Arguments);
                 }),
             ];
+        }
+
+        // Compared as what the documents say, not as text: one that went through a file comes
+        // back indented otherwise and with its keys wherever the writer put them.
+        private static bool SameStart(string? before, string? after)
+        {
+            if (before is null || after is null)
+            {
+                return before is null && after is null;
+            }
+
+            using JsonDocument was = JsonDocument.Parse(before);
+            using JsonDocument now = JsonDocument.Parse(after);
+            StringBuilder left = new();
+            StringBuilder right = new();
+            Canonical.Write(was.RootElement, left);
+            Canonical.Write(now.RootElement, right);
+            return string.Equals(left.ToString(), right.ToString(), StringComparison.Ordinal);
         }
 
         private static Dictionary<string, int> Named(TestDesign design)

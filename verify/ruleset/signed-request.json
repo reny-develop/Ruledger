@@ -1,0 +1,108 @@
+{
+  "$schema": "rulealize/ruleset/v1",
+  "id": "Rulealize.RuleSet.SignedRequest",
+  "version": "1.0.0",
+
+  // A request that may not be granted until enough people have signed it.
+  //
+  // The first published rule set that is made of others. It holds
+  // `Rulealize.RuleSet.Request` and `Rulealize.RuleSet.Signatures`, adds no state and no
+  // inputs of its own, and consists entirely of the guards that neither of them could write.
+  //
+  // ── What it is, and what it is not ──
+  //
+  // It is not a bigger version of either half. Everything it offers is one of theirs, under
+  // the name this document calls them by: `req.raise`, `req.grant`, `sigs.sign`. What this
+  // adds is *when* each is offered, and that is the whole of it.
+  //
+  // The request half has never heard of a signatory: nothing in it stops a request being
+  // granted by one person. The signing half has no idea what is being signed: nothing in it
+  // stops signatures being collected for a request nobody raised. Both documents are correct
+  // and the process they describe together is not, which is the case composition exists for.
+  //
+  // ── The two guards ──
+  //
+  // **Nothing is granted unsigned.** `req.grant` is offered only once the signatures are in.
+  // This is the rule somebody actually wanted, and it is one sentence here because it is a
+  // sentence about two states at once.
+  //
+  // **Nothing is signed before there is something to sign.** `sigs.sign` and `sigs.decline`
+  // wait for the request to be under review. Without it a case could collect its signatures
+  // first and then raise a request they had already approved, which is the shape of every
+  // rubber stamp there has ever been.
+  //
+  // ── What it deliberately does not do ──
+  //
+  // A refused signature does not deny the request. It leaves `req.deny` as the only move,
+  // so somebody has to actually deny it — the refusal is a fact about the signatures and the
+  // denial is a decision about the request, and collapsing them would lose the difference
+  // between "nobody would sign" and "we decided against it".
+  //
+  // Neither does it drive anything with `fires`. Signing and granting are two decisions made
+  // by two people at two times, and a composite that made them one transition would be
+  // modelling a shorter process than the one being run.
+  //
+  // ── No state and no inputs of its own ──
+  //
+  // Both are optional once `uses` declares something, and this document needs neither: its
+  // state is its components' and every move is theirs. That is worth seeing once — a
+  // composite can be nothing but the guard, and this one is.
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.State",      "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Comparison", "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Record",     "version": "^1.0" },
+    { "plugin": "Rulealize.Plugin.Logic",      "version": "^1.0" }
+  ],
+
+  "uses": [
+    { "ruleSet": "Rulealize.RuleSet.Request",    "version": "^1.0", "as": "req"  },
+    { "ruleSet": "Rulealize.RuleSet.Signatures", "version": "^1.0", "as": "sigs" }
+  ],
+
+  "held": {
+    "req": {
+      // Asked after the component's own guard and may only narrow, so this cannot grant a
+      // request `Rulealize.RuleSet.Request` would not have offered — it can only wait.
+      "grant": {
+        "when": {
+          "op": "cmp.eq", "right": "signed",
+          "left": { "op": "rec.at", "record": "$sigs", "key": "outcome" }
+        }
+      }
+    },
+
+    "sigs": {
+      "sign": {
+        "when": {
+          "op": "cmp.eq", "right": "review",
+          "left": { "op": "rec.at", "record": "$req", "key": "stage" }
+        }
+      },
+      "decline": {
+        "when": {
+          "op": "cmp.eq", "right": "review",
+          "left": { "op": "rec.at", "record": "$req", "key": "stage" }
+        }
+      }
+    }
+  },
+
+  // The request's ending, read rather than inherited: a composite never consults a component's
+  // `terminal`, so saying when this is over is this document's job even where the answer is
+  // entirely about one of its halves. It is over when the request is settled — the signatures
+  // may be open for ever afterwards and nobody cares, because there is nothing left to sign
+  // for.
+  "terminal": {
+    "when": {
+      "op": "logic.or",
+      "any": [
+        { "op": "cmp.eq", "right": "granted",
+          "left": { "op": "rec.at", "record": "$req", "key": "stage" } },
+        { "op": "cmp.eq", "right": "denied",
+          "left": { "op": "rec.at", "record": "$req", "key": "stage" } }
+      ]
+    },
+    "result": { "op": "rec.at", "record": "$req", "key": "stage" }
+  }
+}

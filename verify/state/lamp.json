@@ -1,0 +1,8 @@
+{
+  "$schema": "rulealize/state/v1",
+  "ruleSet": "lamp@1.0.0",
+
+  "data": {
+    "sw": { "data": { "on": false } }
+  }
+}

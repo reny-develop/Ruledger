@@ -1,0 +1,118 @@
+{
+  // The same process as `signed-request.json`, written as one rule set instead of two held by
+  // a third. Written because that composite is the one here whose initial state offers
+  // nothing — who may sign and what may be requested arrive in the state document of a case —
+  // so it is the pair a walk from a start is held to: begun in the same case written both
+  // ways, the two must be designed the same. Only the names differ — `raise` here is
+  // `req.raise` there, and `sign` is `sigs.sign`.
+  "id": "signed-request-merged",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Logic" },
+    { "plugin": "Rulealize.Plugin.Binding" },    { "plugin": "Rulealize.Plugin.Branch" },
+    { "plugin": "Rulealize.Plugin.Definition" }, { "plugin": "Rulealize.Plugin.Arithmetic" },
+    { "plugin": "Rulealize.Plugin.Sequence" }
+  ],
+
+  "state": {
+    "schema": {
+      "subjects": { "op": "type.list", "element": { "op": "type.string", "minLength": 1 } },
+      "stage": { "op": "type.enum", "values": ["draft", "review", "granted", "denied"] },
+      "subject": { "op": "type.string", "minLength": 1, "nullable": true },
+      "signatories": { "op": "type.list", "element": { "op": "type.string", "minLength": 1 } },
+      "required": { "op": "type.int", "min": 1 },
+      "signed": { "op": "type.list", "element": { "op": "type.string", "minLength": 1 } },
+      "outcome": { "op": "type.enum", "values": ["open", "signed", "refused"] }
+    },
+    "initial": {
+      "subjects": [], "stage": "draft", "subject": null,
+      "signatories": [], "required": 1, "signed": [], "outcome": "open"
+    }
+  },
+
+  "definitions": {
+    "waiting": {
+      "op": "seq.where", "source": "$signatories", "as": "p",
+      "predicate": {
+        "op": "logic.not",
+        "value": {
+          "op": "seq.any", "source": "$signed", "as": "s",
+          "predicate": { "op": "cmp.eq", "left": "@s", "right": "@p" }
+        }
+      }
+    }
+  },
+
+  "inputs": {
+    "raise": {
+      "params": { "subject": { "domain": "$subjects" } },
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "draft" },
+      "effects": [
+        { "op": "state.set", "path": "subject", "value": "@subject" },
+        { "op": "state.set", "path": "stage", "value": "review" }
+      ]
+    },
+
+    "grant": {
+      "when": { "op": "logic.and", "all": [
+        // The request half's own guard.
+        { "op": "cmp.eq", "left": "$stage", "right": "review" },
+        // The guard neither half could write: nothing is granted unsigned.
+        { "op": "cmp.eq", "left": "$outcome", "right": "signed" } ] },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "granted" } ]
+    },
+
+    "deny": {
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "review" },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "denied" } ]
+    },
+
+    "sign": {
+      "params": { "who": { "domain": "#waiting" } },
+      "when": { "op": "logic.and", "all": [
+        // The signing half's own guard.
+        { "op": "cmp.eq", "left": "$outcome", "right": "open" },
+        // The guard neither half could write: nothing is signed before there is something to sign.
+        { "op": "cmp.eq", "left": "$stage", "right": "review" } ] },
+      "effects": [
+        {
+          "op": "state.set", "path": "signed",
+          "value": { "op": "seq.concat", "of": ["$signed", { "op": "seq.of", "of": ["@who"] }] }
+        },
+        {
+          "op": "state.set", "path": "outcome",
+          "value": {
+            "op": "branch.if",
+            "cond": {
+              "op": "cmp.gte",
+              "left": { "op": "math.add", "of": [{ "op": "seq.count", "source": "$signed" }, 1] },
+              "right": "$required"
+            },
+            "then": "signed", "else": "open"
+          }
+        }
+      ]
+    },
+
+    "decline": {
+      "params": { "who": { "domain": "#waiting" } },
+      "when": { "op": "logic.and", "all": [
+        { "op": "cmp.eq", "left": "$outcome", "right": "open" },
+        { "op": "cmp.eq", "left": "$stage", "right": "review" } ] },
+      "effects": [ { "op": "state.set", "path": "outcome", "value": "refused" } ]
+    }
+  },
+
+  "terminal": {
+    "when": {
+      "op": "logic.or",
+      "any": [
+        { "op": "cmp.eq", "left": "$stage", "right": "granted" },
+        { "op": "cmp.eq", "left": "$stage", "right": "denied" }
+      ]
+    },
+    "result": "$stage"
+  }
+}

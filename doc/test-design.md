@@ -1,4 +1,4 @@
-# `ruledger/test-design/v2`
+# `ruledger/test-design/v3`
 
 Written for: someone reading or writing a test design by hand, or writing something that
 reads one.
@@ -10,8 +10,8 @@ a `rulealize/input/v1` carries, a draw as what a `rulealize/outcome/v1` carries.
 transcribed into a shape of its own, so a person stepping through a design by hand and
 Ruledger applying it again are reading the same thing.
 
-Ruledger produces one by walking the rule set: from the state the rule set starts in, take
-each legal input, carry on from where it lands, and write down every state not arrived at
+Ruledger produces one by walking the rule set: from the state the rule set starts in, or the
+state of a case it was handed instead, take each legal input, carry on from where it lands, and write down every state not arrived at
 before, until the number of states it was given have been written down. **The walk** below
 means that, and `settings` holds that number.
 
@@ -19,7 +19,7 @@ means that, and `settings` holds that number.
 
 ```json
 {
-  "$schema": "ruledger/test-design/v2",
+  "$schema": "ruledger/test-design/v3",
   "ruleSet": "reversi@1.0.0",
   "settings": { "states": 3000, "candidates": 10000, "outcomes": 64 },
   "observed": ["board", "turn", "passes"],
@@ -32,9 +32,10 @@ means that, and `settings` holds that number.
 
 | key | |
 |---|---|
-| `$schema` | `ruledger/test-design/v2`, and a document without it is refused rather than guessed at. A `ruledger/test-design/v1` document is read as one: v2 adds a move that waits for a value, and a v1 document has none |
+| `$schema` | `ruledger/test-design/v3`, and a document without it is refused rather than guessed at. A `ruledger/test-design/v2` document is read as one: v3 adds `start`, and a v2 document began where the rule set begins. A `ruledger/test-design/v1` document is read too: v2 adds a move that waits for a value, and a v1 document has none |
 | `ruleSet` | what the rule set calls itself, as `id@version` |
 | `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree. Each of the three leaves a mark where it bit: `"to": null`, `truncated`, `followed` |
+| `start` | the state the walk began in, as a `rulealize/state/v1` document, where it was handed one. Absent where it began in the rule set's own initial state; see below |
 | `observed` | the state paths two positions have to agree on to be the same position, in the order the rule set's `state.schema` declares them |
 | `collapsed` | the state paths left out of that comparison because nothing observable reads them, in the same order |
 | `admits` | what each parameter the rule set leaves open admits, by input and parameter: the op of its schema and the bounds beside it, as the runtime answered them. Absent where nothing is left open; see below |
@@ -50,6 +51,17 @@ rule set that keeps one would never be walked back into a position it had visite
 are written down because a diff has to know whether two designs were compared the same way.
 Which fields is what it asks, not their order: the same fields declared in another order are
 the same comparison, since one walk agrees with itself on the order whatever it is.
+
+`start` is there for a rule set whose initial state is the shape of a case rather than one —
+who may sign and what may be requested, empty until somebody says — and which offers nothing
+from there. Which case was walked is not derived from the rule set, so it travels in the design
+as the settings do, and it is the document itself rather than a path to one: whatever replays
+the design begins where the walk began, even after the file it came from has changed. A
+composite's component states may leave out the `ruleSet` they belong to; the runtime reads
+such a state as the one that names it, and so does the walk. `#0` is wherever the walk began,
+and a state is named by how the walk arrived from there, so two designs that began in
+different states are not compared with each other. A v2 reader would pass over `start` and
+take the walk for one from the rule set's own initial state, which is why the version moved.
 
 `unreached` is the only quantity of its kind. It counts the times an input arrived somewhere
 the walk had not been with no states left to spend, and there is no percentage, no coverage

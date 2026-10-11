@@ -32,6 +32,7 @@ namespace Ruledger
         internal TestDesign(
             string ruleSet,
             WalkSettings settings,
+            string? start,
             IReadOnlyList<string> observed,
             IReadOnlyList<string> collapsed,
             IReadOnlyList<TestDesignState> states,
@@ -41,6 +42,7 @@ namespace Ruledger
         {
             RuleSet = ruleSet;
             Settings = settings;
+            Start = start;
             Observed = observed;
             Collapsed = collapsed;
             States = states;
@@ -54,6 +56,24 @@ namespace Ruledger
 
         /// <summary>Gets how the walk was told to go, which is recorded because none of it is derived.</summary>
         public WalkSettings Settings { get; }
+
+        /// <summary>Gets the state the walk began in, as a <c>rulealize/state/v1</c> document, where it was given one.</summary>
+        /// <remarks>
+        /// <para>
+        /// Null where the walk began where the rule set itself begins. A rule set's initial
+        /// state is often only the shape of a case — who may sign, what may be requested —
+        /// with nothing in it yet, and the case is a state document of its own. Which case was
+        /// walked is not derived from the rule set, so it travels in the test design like the
+        /// settings do, and the document itself travels rather than where it was read from:
+        /// whatever replays this begins where the walk began, even after the file has moved on.
+        /// </para>
+        /// <para>
+        /// A choice is held by how the walk arrived at a state, and #0 is wherever the walk
+        /// began, so two test designs that began in different states name different states the
+        /// same. They are not compared with each other.
+        /// </para>
+        /// </remarks>
+        public string? Start { get; }
 
         /// <summary>Gets the state a position was compared on, in the order the schema declares it.</summary>
         public IReadOnlyList<string> Observed { get; }
@@ -134,14 +154,56 @@ namespace Ruledger
             return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components), edits);
         }
 
+        /// <summary>Walks a rule set from a state of a case, and writes down what is observable along the way.</summary>
+        /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
+        /// <param name="ruleSet">The rule set, as text.</param>
+        /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier, or null where it holds none.</param>
+        /// <param name="start">The <c>rulealize/state/v1</c> document to begin in, in place of the rule set's own initial state.</param>
+        /// <param name="settings">How far to go, or null for three thousand states.</param>
+        /// <param name="edits">Choices a person made, which the walk takes first where it can, or null for none.</param>
+        /// <returns>The test design, with <see cref="Start"/> set to the document it began in.</returns>
+        /// <remarks>
+        /// <para>
+        /// For a rule set whose initial state is the shape of a case and not one: a list of who
+        /// may sign that is empty until somebody says who. The state is read against the rule
+        /// set's schema, a composite's components included, exactly as any other state the
+        /// runtime is handed; a component's state may leave out the <c>ruleSet</c> it belongs
+        /// to, and is then the same state as one that names it.
+        /// </para>
+        /// <para>
+        /// The choices are carried one by one, as they are when the rule set changes: each is
+        /// held by how the walk arrived at a state, and each that does not name a legal move
+        /// from where it now leads is reported as such. What a choice was made against is not
+        /// asked, because a person who handed in both the start and the choices has said which
+        /// they meant.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
+        /// <exception cref="RuleDocumentException">The start is not a state of this rule set.</exception>
+        /// <exception cref="InvalidOperationException">A rule set named in <c>uses</c> was not supplied.</exception>
+        public static TestDesign Derive(
+            RuleRuntime runtime,
+            string ruleSet,
+            IReadOnlyDictionary<string, string>? components,
+            string start,
+            WalkSettings? settings,
+            IReadOnlyList<TestDesignEdit>? edits)
+        {
+            ArgumentNullException.ThrowIfNull(runtime);
+            ArgumentNullException.ThrowIfNull(ruleSet);
+            ArgumentNullException.ThrowIfNull(start);
+
+            return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components), edits, start);
+        }
+
         /// <summary>Reads a test design back.</summary>
-        /// <param name="testDesign">A <c>ruledger/test-design/v2</c> document, or a v1 one.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v3</c> document, or a v2 or v1 one.</param>
         /// <returns>What it says.</returns>
         /// <exception cref="JsonException">The text is not JSON.</exception>
         /// <exception cref="InvalidOperationException">The text is not a test design.</exception>
         public static TestDesign FromJson(string testDesign) => TestDesignDocument.Read(testDesign);
 
-        /// <summary>Writes this test design as a <c>ruledger/test-design/v2</c> document.</summary>
+        /// <summary>Writes this test design as a <c>ruledger/test-design/v3</c> document.</summary>
         /// <returns>The document.</returns>
         /// <remarks>
         /// This is the test design — what a person reads against what they meant, what they put
@@ -156,12 +218,14 @@ namespace Ruledger
             IReadOnlyDictionary<string, string>? components,
             WalkSettings? settings,
             ObservationScan observation,
-            IReadOnlyList<TestDesignEdit>? edits = null)
+            IReadOnlyList<TestDesignEdit>? edits = null,
+            string? start = null)
         {
             Walker walker = new(
                 runtime.CreateContext(ruleSet, components),
                 observation,
                 settings ?? new WalkSettings(),
+                start,
                 edits ?? []);
 
             return walker.Walk();
@@ -171,6 +235,7 @@ namespace Ruledger
             RuleContext rules,
             ObservationScan observation,
             WalkSettings settings,
+            string? start,
             IReadOnlyList<TestDesignEdit> edits)
         {
             private readonly Dictionary<string, string> seen = new(StringComparer.Ordinal);
@@ -187,7 +252,15 @@ namespace Ruledger
 
             public TestDesign Walk()
             {
-                Arrive(rules.InitialState, null, null);
+                // A start somebody wrote is put to the runtime before anything else reads it, so
+                // that one which is not a state of this rule set is refused in the runtime's
+                // words, naming the field that is wrong, rather than failing somewhere in here.
+                if (start is not null)
+                {
+                    rules.GetTerminalStatus(start);
+                }
+
+                Arrive(start ?? rules.InitialState, null, null);
 
                 // The recursion is written out because its depth is the depth of the walk, and
                 // only the count of states it may visit keeps that bounded: a rule set holding a
@@ -209,6 +282,7 @@ namespace Ruledger
                 return new TestDesign(
                     rules.RuleSet,
                     settings,
+                    start,
                     observation.Observed,
                     observation.Collapsed,
                     [.. this.order.Select(static entry => entry.Close())],
@@ -222,20 +296,24 @@ namespace Ruledger
 
             // A composite keeps each component's state under its alias, and keeps it as a state
             // document rather than as bare fields, so `req.stage` is one step through the alias
-            // and one through what the component wrote.
-            private static JsonElement? Locate(JsonElement data, string field)
+            // and one through what the component wrote. Told by the alias and not by the shape:
+            // the runtime names the component in what it writes, and a person writing a start
+            // need not, so a document that leaves `ruleSet` out is still the same state.
+            private JsonElement? Locate(JsonElement data, string field)
             {
                 JsonElement node = data;
-                foreach (string segment in field.Split('.'))
+                string[] segments = field.Split('.');
+                for (int at = 0; at < segments.Length; at++)
                 {
-                    if (node.ValueKind == JsonValueKind.Object
-                        && node.TryGetProperty("ruleSet", out _)
+                    if (at > 0
+                        && observation.Held.Contains(string.Join('.', segments, 0, at))
+                        && node.ValueKind == JsonValueKind.Object
                         && node.TryGetProperty("data", out JsonElement held))
                     {
                         node = held;
                     }
 
-                    if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(segment, out node))
+                    if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(segments[at], out node))
                     {
                         return null;
                     }

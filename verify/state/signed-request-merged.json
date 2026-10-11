@@ -1,0 +1,9 @@
+{
+  "$schema": "rulealize/state/v1",
+  "ruleSet": "signed-request-merged@1.0.0",
+
+  "data": {
+    "subjects": ["budget-q3", "budget-q4"], "stage": "draft", "subject": null,
+    "signatories": ["ann", "bo", "cy"], "required": 2, "signed": [], "outcome": "open"
+  }
+}

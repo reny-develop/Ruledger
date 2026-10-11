@@ -67,6 +67,8 @@
              CopyToOutputDirectory="PreserveNewest" />
     <Content Include="choice\*.json" Link="choice\%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="state\*.json" Link="state\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

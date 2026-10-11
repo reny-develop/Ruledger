@@ -48,6 +48,36 @@ namespace Ruledger.Verify
                 split.States.Where(state => state.IsTerminal).Select(state => state.Result));
         }
 
+        // The same process walked from the same case, written once as a composite with its
+        // components' states nested under their aliases and once as flat fields. A walk from a
+        // start is where nesting reaches the comparison of the very first state, so it is held
+        // to the same thing.
+        [Fact]
+        public void SplittingARuleSetDoesNotChangeTheTestDesignFromACase()
+        {
+            Dictionary<string, string> held = new(StringComparer.Ordinal)
+            {
+                ["Rulealize.RuleSet.Request"] = Fixture.RuleSet("Rulealize.RuleSet.Request"),
+                ["Rulealize.RuleSet.Signatures"] = Fixture.RuleSet("Rulealize.RuleSet.Signatures"),
+            };
+
+            TestDesign split = TestDesign.Derive(
+                Fixture.Runtime, Fixture.RuleSet("signed-request"), held, Fixture.State("signed-request"), new WalkSettings(States: 300), null);
+            TestDesign whole = TestDesign.Derive(
+                Fixture.Runtime, Fixture.RuleSet("signed-request-merged"), null, Fixture.State("signed-request-merged"), new WalkSettings(States: 300), null);
+
+            said.WriteLine($"signed-request against signed-request-merged from the published case: "
+                + $"{split.States.Count} states and {Fixture.Rejoins(split)} rejoins against "
+                + $"{whole.States.Count} and {Fixture.Rejoins(whole)}, "
+                + $"endings {string.Join('/', Fixture.Results(split))} against "
+                + $"{string.Join('/', Fixture.Results(whole))}");
+
+            Assert.Equal(whole.States.Count, split.States.Count);
+            Assert.Equal(whole.Unreached, split.Unreached);
+            Assert.Equal(Sketch(whole), Sketch(split));
+            Assert.Equal(Fixture.Rejoins(whole), Fixture.Rejoins(split));
+        }
+
         // What puts that at risk is how a composite has to read a component: as a record, one
         // key at a time. Read whole it would keep `note`, which nothing observes, and the two
         // documents would stop agreeing about which positions are the same position — nine

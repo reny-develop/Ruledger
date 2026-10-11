@@ -1,0 +1,14 @@
+{
+  // A lamp, which is a switch held under an alias and nothing more. The walk goes off, on,
+  // and back to off, so it returns to where it began: begun in a state written by hand, which
+  // need not name the rule set its component's state belongs to, that return is the only
+  // place where how the start was compared shows.
+  "id": "lamp",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.State" }
+  ],
+
+  "uses": [ { "ruleSet": "switch", "version": "^1.0", "as": "sw" } ]
+}

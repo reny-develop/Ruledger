@@ -46,6 +46,7 @@ namespace Ruledger
         private readonly Dictionary<string, List<string>> aliases = new(StringComparer.Ordinal);
         private readonly Dictionary<string, JsonElement> definitions = new(StringComparer.Ordinal);
         private readonly HashSet<string> reached = new(StringComparer.Ordinal);
+        private readonly HashSet<string> held = new(StringComparer.Ordinal);
 
         private ObservationScan(JsonElement root, IReadOnlyDictionary<string, string>? components, bool whole = false)
         {
@@ -76,6 +77,11 @@ namespace Ruledger
         public IReadOnlyList<string> Observed { get; }
 
         internal IReadOnlyList<string> Declared => this.declared;
+
+        // Where a component's state sits, which is a state document of its own and not a
+        // record: a held rule set's field is reached through that document's `data`. Nested,
+        // so a component that holds others contributes its own with its alias in front.
+        internal IReadOnlySet<string> Held => this.held;
 
         /// <summary>Gets the state fields nothing observable depends on, in the order the schema declares them.</summary>
         /// <remarks>
@@ -262,6 +268,8 @@ namespace Ruledger
                 List<string> held = [.. component.Declared.Select(field => alias + "." + field)];
 
                 this.aliases[alias] = held;
+                this.held.Add(alias);
+                this.held.UnionWith(component.Held.Select(inner => alias + "." + inner));
                 this.declared.AddRange(held);
                 this.reached.UnionWith(component.Observed.Select(field => alias + "." + field));
             }

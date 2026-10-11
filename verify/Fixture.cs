@@ -30,6 +30,12 @@ namespace Ruledger.Verify
         public static string RuleSet(string ruleSet) =>
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "ruleset", ruleSet + ".json"));
 
+        /// <summary>Reads the state of a case, out of <c>verify/state</c>.</summary>
+        /// <param name="state">Which case, by the rule set it is a state of.</param>
+        /// <returns>The <c>rulealize/state/v1</c> document, as text.</returns>
+        public static string State(string state) =>
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "state", state + ".json"));
+
         /// <summary>Reads the choices a person made, out of <c>verify/choice</c>.</summary>
         /// <param name="ruleSet">Which rule set they were made on.</param>
         /// <returns>The choices, in the order they were made.</returns>

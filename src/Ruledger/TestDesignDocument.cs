@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Ruledger
 {
-    /// <summary>The <c>ruledger/test-design/v2</c> document: a test design, written down.</summary>
+    /// <summary>The <c>ruledger/test-design/v3</c> document: a test design, written down.</summary>
     /// <remarks>
     /// <para>
     /// A fourth document beside the three Rulealize already reads, and made of them: a state
@@ -34,14 +34,22 @@ namespace Ruledger
     /// take it for a move in a final state, which is why the version moved. Everything v1 wrote
     /// is still v2, so a v1 document is read as one.
     /// </para>
+    /// <para>
+    /// v3 adds <c>start</c>, the state the walk began in where it was given one. A v2 reader
+    /// passes over a key it does not know, and would have read a walk of one case as a walk
+    /// from the rule set's own initial state and replayed it from there, which is why the
+    /// version moved again. A document without it began where the rule set begins, so
+    /// everything v2 wrote is still v3.
+    /// </para>
     /// </remarks>
     internal static class TestDesignDocument
     {
-        private const string Schema = "ruledger/test-design/v2";
+        private const string Schema = "ruledger/test-design/v3";
 
-        // What an earlier Ruledger wrote, read as it stands: every v1 document is a v2 document
-        // that happens to have no move waiting for a value.
-        private const string Earlier = "ruledger/test-design/v1";
+        // What earlier Ruledgers wrote, read as they stand: every v2 document is a v3 document
+        // that began where the rule set begins, and every v1 document is a v2 document that
+        // happens to have no move waiting for a value.
+        private static readonly string[] Earlier = ["ruledger/test-design/v2", "ruledger/test-design/v1"];
 
         public static string Write(TestDesign design)
         {
@@ -67,6 +75,14 @@ namespace Ruledger
                 writer.WriteNumber("candidates", design.Settings.Candidates);
                 writer.WriteNumber("outcomes", design.Settings.Outcomes);
                 writer.WriteEndObject();
+
+                // Beside the settings and not among them: those say how far the walk went, and
+                // this is where it went from. Left out where the rule set's own initial state is.
+                if (design.Start is not null)
+                {
+                    writer.WritePropertyName("start");
+                    Embed(writer, design.Start);
+                }
 
                 WriteNames(writer, "observed", design.Observed);
                 WriteNames(writer, "collapsed", design.Collapsed);
@@ -96,7 +112,8 @@ namespace Ruledger
             JsonElement root = document.RootElement;
 
             if (!root.TryGetProperty("$schema", out JsonElement schema)
-                || schema.GetString() is not (Schema or Earlier))
+                || schema.GetString() is not string named
+                || (named != Schema && !Earlier.Contains(named)))
             {
                 throw new InvalidOperationException($"This is not a '{Schema}' document.");
             }
@@ -109,6 +126,7 @@ namespace Ruledger
                     settings.GetProperty("states").GetInt32(),
                     settings.GetProperty("candidates").GetInt32(),
                     settings.GetProperty("outcomes").GetInt32()),
+                root.TryGetProperty("start", out JsonElement start) && start.ValueKind == JsonValueKind.Object ? start.GetRawText() : null,
                 ReadNames(root, "observed"),
                 ReadNames(root, "collapsed"),
                 [.. root.GetProperty("states").EnumerateArray().Select(ReadState)],

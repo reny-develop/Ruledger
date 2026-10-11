@@ -1,0 +1,9 @@
+{
+  "$schema": "rulealize/state/v1",
+  "ruleSet": "Rulealize.RuleSet.SignedRequest@1.0.0",
+
+  "data": {
+    "req":  { "data": { "subjects": ["budget-q3", "budget-q4"], "stage": "draft", "subject": null } },
+    "sigs": { "data": { "signatories": ["ann", "bo", "cy"], "required": 2, "signed": [], "outcome": "open" } }
+  }
+}

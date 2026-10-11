@@ -16,5 +16,8 @@ namespace Ruledger.Tests
 
         public static string Read(string ruleSet) =>
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "ruleset", ruleSet + ".json"));
+
+        public static string State(string state) =>
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "state", state + ".json"));
     }
 }
