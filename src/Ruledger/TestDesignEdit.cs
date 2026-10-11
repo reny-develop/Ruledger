@@ -77,7 +77,11 @@ namespace Ruledger
     }
 
     /// <summary>One edit and what became of it.</summary>
-    /// <param name="Edit">The choice a person made.</param>
+    /// <param name="Edit">
+    /// The choice a person made. Where the state was walked, a value for a parameter left open
+    /// is in the form the move it names is written in, so that <c>3.0</c> for a whole number
+    /// comes back as <c>3</c>: that is the form it was compared in.
+    /// </param>
     /// <param name="Outcome">Whether it was taken, and if not, why not.</param>
     /// <param name="Name">
     /// The name of the state it was found in, spelled out as how the walk arrived there, or

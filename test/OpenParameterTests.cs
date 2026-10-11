@@ -169,6 +169,75 @@ namespace Ruledger.Tests
             Assert.Empty(first.Gained);
         }
 
+        [Theory]
+        [InlineData("3.0")]
+        [InlineData("03")]
+        public void AWholeNumberWrittenAnotherWayIsCarriedAndComesBackAsTheMoveIsWritten(string size)
+        {
+            TestDesign design = Derive(
+                new TestDesignEdit("#0", "setName", Arguments(("to", "alice"))),
+                new TestDesignEdit("#1", "setParty", Arguments(("size", size))));
+
+            EditResult party = design.Edits[1];
+            Assert.Equal(EditOutcome.Carried, party.Outcome);
+            Assert.Equal("3", party.Edit.Arguments["size"]);
+
+            // Taken first, which is what the choice was for.
+            Assert.Equal("setParty(size: 3)", design.States[2].By);
+            Assert.Contains("\"size\": \"3\"", design.ToJson(), StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void ANumberWrittenWithDecimalsIsCarriedWhereNothingIsEnumerated()
+        {
+            // Without an upper bound the whole numbers cannot be named in full, so this is the
+            // value a person wrote being followed rather than one the walk found by trying them
+            // all — the same road an amount takes.
+            string unbounded = Vocabulary.Read("signup").Replace(
+                "\"party\": { \"op\": \"type.int\", \"min\": 1, \"max\": 6 }",
+                "\"party\": { \"op\": \"type.int\", \"min\": 1 }",
+                StringComparison.Ordinal);
+
+            TestDesign design = TestDesign.Derive(Vocabulary.Runtime, unbounded, null, new WalkSettings(States: 300),
+            [
+                new TestDesignEdit("#0", "setName", Arguments(("to", "alice"))),
+                new TestDesignEdit("#1", "setParty", Arguments(("size", "3.00"))),
+                new TestDesignEdit("#1", "setParty", Arguments(("size", "3"))),
+            ]);
+
+            Assert.All(design.Edits, result => Assert.Equal(EditOutcome.Carried, result.Outcome));
+            Assert.Equal("3", design.Edits[1].Edit.Arguments["size"]);
+
+            // Two ways of writing one value are one move.
+            Assert.Equal(
+                ["setParty(size: ?)", "setParty(size: 3)"],
+                design.States[1].Moves.Where(move => move.Input == "setParty").Select(move => move.Text));
+        }
+
+        [Fact]
+        public void ABooleanWrittenInCapitalsIsCarried()
+        {
+            string flagged = Vocabulary.Read("signup")
+                .Replace(
+                    "\"wants\": { \"op\": \"type.enum\", \"values\": [\"quiet\", \"near the door\"], \"nullable\": true }",
+                    "\"wants\": { \"op\": \"type.enum\", \"values\": [\"quiet\", \"near the door\"], \"nullable\": true }, \"vip\": { \"op\": \"type.bool\" }",
+                    StringComparison.Ordinal)
+                .Replace("\"wants\": null }", "\"wants\": null, \"vip\": false }", StringComparison.Ordinal)
+                .Replace(
+                    "\"inputs\": {",
+                    "\"inputs\": { \"setVip\": { \"params\": { \"to\": { \"open\": { \"field\": \"vip\" } } }, \"effects\": [ { \"op\": \"state.set\", \"path\": \"vip\", \"value\": \"@to\" } ] },",
+                    StringComparison.Ordinal);
+
+            TestDesign design = TestDesign.Derive(Vocabulary.Runtime, flagged, null, new WalkSettings(States: 300),
+                [new TestDesignEdit("#0", "setVip", Arguments(("to", "True")))]);
+
+            // Nothing reads `vip`, so where it lands is #0 again; whether the choice was taken
+            // is the whole of what this is about.
+            EditResult vip = Assert.Single(design.Edits);
+            Assert.Equal(EditOutcome.Carried, vip.Outcome);
+            Assert.Equal("true", vip.Edit.Arguments["to"]);
+        }
+
         private static TestDesign Derive(params TestDesignEdit[] edits) =>
             TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read("signup"), null, new WalkSettings(States: 300), edits);
 

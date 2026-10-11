@@ -301,7 +301,7 @@ namespace Ruledger
                     Fill(entry, onward, name, state, terminal, input);
                 }
 
-                entry.Ahead.AddRange(Ordered(name, entry.Moves, onward));
+                entry.Ahead.AddRange(Ordered(name, entry.Moves, onward, legal));
                 this.descending.Push(entry);
                 return name;
             }
@@ -494,9 +494,11 @@ namespace Ruledger
 
             // The values a person wrote for a move nobody could enumerate, one choice each.
             // A choice that names a value the rules then refuse is not carried, and says so.
+            // Two choices that name one value however it was written are one move.
             private IEnumerable<Dictionary<string, JsonNode?>> Written(ValidInput input, string name)
             {
                 Dictionary<string, string> settled = Settled(input);
+                HashSet<string> named = new(StringComparer.Ordinal);
 
                 foreach (TestDesignEdit edit in edits.Where(edit => edit.Input == input.Input && Names(edit, name)))
                 {
@@ -506,10 +508,15 @@ namespace Ruledger
                         continue;
                     }
 
-                    yield return input.Open.ToDictionary(
+                    Dictionary<string, JsonNode?> values = input.Open.ToDictionary(
                         static open => open.Name,
                         open => Parse(open, edit.Arguments[open.Name]),
                         StringComparer.Ordinal);
+
+                    if (named.Add(Move.Write(input.Input, values.ToDictionary(static each => each.Key, each => Text(each.Value), StringComparer.Ordinal))))
+                    {
+                        yield return values;
+                    }
                 }
             }
 
@@ -541,22 +548,45 @@ namespace Ruledger
                 _ => value.ToJsonString(),
             };
 
+            // What a person wrote for a parameter left open, in the form the walk writes that
+            // argument in, so that a choice of 3.0 names the move written 3: the walk goes down
+            // a written value by what it is, and whether it was carried is asked of the same
+            // thing. The schema's op is what says "3.0" is a number at all, so an argument the
+            // rule set settled itself is left as it was written.
+            private static TestDesignEdit Spelled(TestDesignEdit edit, ValidInputSet legal)
+            {
+                Dictionary<string, string> arguments = new(StringComparer.Ordinal);
+                foreach ((string parameter, string text) in edit.Arguments)
+                {
+                    OpenParameter? open = legal
+                        .Where(input => input.Input == edit.Input)
+                        .SelectMany(static input => input.Open)
+                        .FirstOrDefault(open => open.Name == parameter);
+
+                    arguments[parameter] = open is null ? text : Text(Parse(open, text));
+                }
+
+                return new TestDesignEdit(edit.State, edit.Input, arguments);
+            }
+
             private static Dictionary<string, string> Settled(ValidInput input) =>
                 input.Arguments.ToDictionary(static a => a.Key, static a => a.Value, StringComparer.Ordinal);
 
             // The one place a person's writing reaches. Which inputs are legal here is an
             // observation and keeps the order the runtime offered them in; which one the walk
             // goes down first is a choice, and that is what an edit replaces.
-            private IEnumerable<Step> Ordered(string name, List<Move> moves, List<List<Step>> onward)
+            private IEnumerable<Step> Ordered(string name, List<Move> moves, List<List<Step>> onward, ValidInputSet legal)
             {
                 List<int> taken = [];
-                foreach (TestDesignEdit edit in edits.Where(edit => Names(edit, name)))
+                foreach (TestDesignEdit written in edits.Where(edit => Names(edit, name)))
                 {
+                    TestDesignEdit edit = Spelled(written, legal);
                     int found = moves.FindIndex(move => Matches(edit, move));
 
                     // Written back with the name spelled out, whichever way it was written
                     // here: the number is only a name inside the test design it was read from.
-                    this.outcomes[edit] = new EditResult(
+                    // The values go back as the move is written for the same reason.
+                    this.outcomes[written] = new EditResult(
                         edit,
                         found < 0 ? EditOutcome.NotLegal : EditOutcome.Carried,
                         this.here.ToString());

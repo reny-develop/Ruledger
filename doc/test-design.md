@@ -246,7 +246,9 @@ The one place a person writes.
 
 Writing one by hand needs `state` and `input`, and nothing else. Ruledger writes `state`
 back out the long way, because the number is a name inside one design and a choice has to
-survive the rule set changing.
+survive the rule set changing. A value for a parameter left open goes back out as the move
+is written, for the same reason that it is compared that way: where the parameter's schema is
+a number, `3.0` and `03` name the move written `3`, and a boolean written `True` names `true`.
 
 **An edit says which input to take first, and never what was found there.** Everything
 downstream of a choice is worked out again from the rules. There is nowhere in this document
