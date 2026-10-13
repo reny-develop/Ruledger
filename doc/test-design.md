@@ -1,4 +1,4 @@
-# `ruledger/test-design/v3`
+# `ruledger/test-design/v4`
 
 Written for: someone reading or writing a test design by hand, or writing something that
 reads one.
@@ -19,7 +19,7 @@ means that, and `settings` holds that number.
 
 ```json
 {
-  "$schema": "ruledger/test-design/v3",
+  "$schema": "ruledger/test-design/v4",
   "ruleSet": "reversi@1.0.0",
   "settings": { "states": 3000, "candidates": 10000, "outcomes": 64 },
   "observed": ["board", "turn", "passes"],
@@ -32,13 +32,14 @@ means that, and `settings` holds that number.
 
 | key | |
 |---|---|
-| `$schema` | `ruledger/test-design/v3`, and a document without it is refused rather than guessed at. A `ruledger/test-design/v2` document is read as one: v3 adds `start`, and a v2 document began where the rule set begins. A `ruledger/test-design/v1` document is read too: v2 adds a move that waits for a value, and a v1 document has none |
+| `$schema` | `ruledger/test-design/v4`, and a document without it is refused rather than guessed at. A `ruledger/test-design/v3` document is read as one that said nothing about projections; see below. A `ruledger/test-design/v2` document is read as a v3 one: v3 adds `start`, and a v2 document began where the rule set begins. A `ruledger/test-design/v1` document is read too: v2 adds a move that waits for a value, and a v1 document has none |
 | `ruleSet` | what the rule set calls itself, as `id@version` |
 | `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree. Each of the three leaves a mark where it bit: `"to": null`, `truncated`, `followed` |
 | `start` | the state the walk began in, as a `rulealize/state/v1` document, where it was handed one. Absent where it began in the rule set's own initial state; see below |
 | `observed` | the state paths two positions have to agree on to be the same position, in the order the rule set's `state.schema` declares them |
 | `collapsed` | the state paths left out of that comparison because nothing observable reads them, in the same order |
 | `admits` | what each parameter the rule set leaves open admits, by input and parameter: the op of its schema and the bounds beside it, as the runtime answered them. Absent where nothing is left open; see below |
+| `projections` | the names of the projections the rule set declares, in the order it declares them. Absent where it declares none; see below |
 | `unreached` | how many landings the walk had no states left for: one per `"to": null` below |
 | `edits` | the choices a person made, and what became of each |
 | `states` | the states, in the order the walk first arrived at them |
@@ -91,14 +92,55 @@ figure and no number standing in for how much of a rule set a design covers.
 | `terminal` | present only when the rules call this state final. It holds `result`, which may be `null` |
 | `moves` | every input that is legal here, in the order the runtime offered them |
 | `refused` | the values for a parameter left open that were tried here and refused, each with the codes that refused it. Absent where none were |
+| `projections` | what each projection the rule set declares says about this state, by name. Absent where it declares none; see below |
 
 `from` and `by` are what make a state's real name: following them back to `#0` spells out
 how the walk arrived, and that is the name that still means this state after the rule set
 changes. Adding a field to every state changes every state and no route to one.
 
-Three things are observable about a state and all three are here: which inputs are legal
-(`moves`), whether it is final and with what result (`terminal`), and where each legal input
-leads (below). Nothing else is written down, because nothing else can be checked.
+Four things are observable about a state and all four are here: which inputs are legal
+(`moves`), whether it is final and with what result (`terminal`), where each legal input
+leads (below), and what each of the rule set's projections says about it (`projections`).
+They are what the runtime answers about a position, and nothing else is written down,
+because nothing else can be checked.
+
+### What a projection says
+
+A projection is a rule set saying something about a position for a host to read — what to
+put on a screen, or what an HTTP endpoint returns beside the state. For a rule set with no
+screen it can be all of what the rules decide that anybody sees, so each state has every
+declared projection's answer, in the text form the runtime writes an argument in:
+
+```json
+"projections": { "atLeastTen": "false" }
+```
+
+A scalar reads as it would in `args`; a sequence or a record is its JSON on one line, in the
+order the runtime wrote it:
+
+```json
+"projections": { "booking": "{\"who\":\"\",\"stage\":\"empty\",\"seat\":null,\"party\":{\"size\":1,\"wants\":null},\"ready\":false}" }
+```
+
+Where the runtime faults, the fault is the answer, and it is an object, which no answer can be
+taken for:
+
+```json
+"projections": { "beatBest": { "fault": "cmp.gte: Ordering is not defined for null. Test with cmp.isNull or supply a default with cmp.coalesce." } }
+```
+
+**A projection that faults stops nothing.** It is asked about a position and moves nothing,
+so the walk does not need its answer to go on. A guard or `terminal` that faults stops the
+walk instead: without its answer there is no next state to go to, and nothing past it could
+be written down.
+
+A field only a projection reads is among the `observed`, as a field only `actor` reads is.
+Collapsed, two positions that answer a projection differently would be written down as one
+state with one answer, and the other position's answer nowhere.
+
+The names are written once at the top as well, for the reason `admits` is: which projections
+there are is read off the rule set, and one added or taken away is one thing that happened,
+not one per state.
 
 ## A move
 
@@ -300,7 +342,8 @@ recomputed and nothing has to be walked again.
 That is the whole of what "the form does not block a rendering" means, and it is measured
 rather than asserted: `verify/Rendering.cs` is the smallest such renderer, written against
 the JSON rather than against Ruledger's own types, and it folds approval, reversi,
-blackjack and roster with nothing else to hand. The block above is its output.
+blackjack, roster and tally with nothing else to hand, tally's projections among them as
+`says` lines. The block above is its output.
 
 ## Two designs
 
@@ -313,7 +356,7 @@ states differ as documents, and all twenty choices survive.
 Two designs walked with different `settings` are not compared at all. They visited different
 states because they were told to, and none of that is the rule set deciding differently.
 
-A state both designs have is **decided differently** when any of these moved: the three
+A state both designs have is **decided differently** when any of these moved: the four
 observables, what was refused there, and the limit that can cut the first of them short:
 
 | | |
@@ -324,9 +367,13 @@ observables, what was refused there, and the limit that can cut the first of the
 | its ending moved | `terminal` gained, lost, or a different `result` |
 | its `truncated` moved | it started or stopped hitting `candidates`, so the two say different amounts about it |
 | a refusal came, went, or changed its codes | a value that moved between refused and legal is already a legal input lost or gained, and is said once |
+| a projection says something else | for a projection both versions declare; a fault that came or went is one |
 
 What an open parameter admits is compared as well, once per parameter rather than per state,
-where both designs record it; one that moved is a difference like any of these.
+where both designs record it; one that moved is a difference like any of these. So is a
+projection only one version declares, said once by name: a host reads a projection by its
+name, so a rename is a field one client stops getting and another starts to. A v3 design
+recorded no projections, and none of this is asked of it.
 
 A state only one of the two designs has is not in that count. It is reported on its own line
 either way, never left as a number: the walk stopped before reaching it this time, or it

@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Ruledger
 {
-    /// <summary>The <c>ruledger/test-design/v3</c> document: a test design, written down.</summary>
+    /// <summary>The <c>ruledger/test-design/v4</c> document: a test design, written down.</summary>
     /// <remarks>
     /// <para>
     /// A fourth document beside the three Rulealize already reads, and made of them: a state
@@ -41,15 +41,22 @@ namespace Ruledger
     /// version moved again. A document without it began where the rule set begins, so
     /// everything v2 wrote is still v3.
     /// </para>
+    /// <para>
+    /// v4 adds <c>projections</c>: the names a rule set declares, once, and what each says
+    /// about every state. Observing them moves which fields two positions are compared on, so
+    /// a v4 walk is not the walk a v3 document recorded, and a v3 document is read as one that
+    /// said nothing about projections rather than as one whose rule set declares none.
+    /// </para>
     /// </remarks>
     internal static class TestDesignDocument
     {
-        private const string Schema = "ruledger/test-design/v3";
+        private const string Schema = "ruledger/test-design/v4";
 
-        // What earlier Ruledgers wrote, read as they stand: every v2 document is a v3 document
-        // that began where the rule set begins, and every v1 document is a v2 document that
-        // happens to have no move waiting for a value.
-        private static readonly string[] Earlier = ["ruledger/test-design/v2", "ruledger/test-design/v1"];
+        // What earlier Ruledgers wrote, read as they stand: every v3 document is a v4 document
+        // that recorded no projections, every v2 document is a v3 document that began where
+        // the rule set begins, and every v1 document is a v2 document that happens to have no
+        // move waiting for a value.
+        private static readonly string[] Earlier = ["ruledger/test-design/v3", "ruledger/test-design/v2", "ruledger/test-design/v1"];
 
         public static string Write(TestDesign design)
         {
@@ -87,6 +94,14 @@ namespace Ruledger
                 WriteNames(writer, "observed", design.Observed);
                 WriteNames(writer, "collapsed", design.Collapsed);
                 WriteAdmits(writer, design.Admits);
+
+                // Left out where the rule set declares none, as `admits` is where nothing is
+                // open; the schema is what says whether a document could have said any.
+                if (design.Projections is { Count: > 0 } projections)
+                {
+                    WriteNames(writer, "projections", projections);
+                }
+
                 writer.WriteNumber("unreached", design.Unreached);
 
                 WriteEdits(writer, design.Edits);
@@ -132,7 +147,10 @@ namespace Ruledger
                 [.. root.GetProperty("states").EnumerateArray().Select(ReadState)],
                 [.. root.GetProperty("edits").EnumerateArray().Select(ReadEdit)],
                 root.GetProperty("unreached").GetInt32(),
-                ReadAdmits(root));
+                ReadAdmits(root),
+                named != Schema ? null
+                    : root.TryGetProperty("projections", out _) ? ReadNames(root, "projections")
+                    : []);
         }
 
         private static void WriteNames(Utf8JsonWriter writer, string name, IReadOnlyList<string> names)
@@ -245,6 +263,28 @@ namespace Ruledger
                 else
                 {
                     writer.WriteString("result", state.Result);
+                }
+
+                writer.WriteEndObject();
+            }
+
+            // By name, each the text the runtime answered or, where it faulted, an object
+            // saying so: a string and an object cannot be taken for one another.
+            if (state.Projections.Count > 0)
+            {
+                writer.WriteStartObject("projections");
+                foreach (Projection projection in state.Projections)
+                {
+                    if (projection.Fault is null)
+                    {
+                        writer.WriteString(projection.Name, projection.Value);
+                    }
+                    else
+                    {
+                        writer.WriteStartObject(projection.Name);
+                        writer.WriteString("fault", projection.Fault);
+                        writer.WriteEndObject();
+                    }
                 }
 
                 writer.WriteEndObject();
@@ -403,6 +443,11 @@ namespace Ruledger
                         each.GetProperty("input").GetString() ?? string.Empty,
                         ReadArguments(each),
                         ReadNames(each, "codes")))]
+                    : null,
+                state.TryGetProperty("projections", out JsonElement projections) && projections.ValueKind == JsonValueKind.Object
+                    ? [.. projections.EnumerateObject().Select(static each => each.Value.ValueKind == JsonValueKind.Object
+                        ? new Projection(each.Name, null, each.Value.GetProperty("fault").GetString() ?? string.Empty)
+                        : new Projection(each.Name, each.Value.GetString(), null))]
                     : null);
 
         private static Move ReadMove(JsonElement move)

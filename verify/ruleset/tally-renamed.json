@@ -1,0 +1,35 @@
+{
+  // tally, with the one line `atLeastTen` is in moved: the same answer under the name
+  // `atLeastThree`. That line, because a host reads a projection by its name, so a rename is a
+  // field one client stops getting and another starts to, whatever it says.
+  "id": "tally",
+  "version": "1.1.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Arithmetic" }
+  ],
+
+  "state": {
+    "schema": {
+      "counted": { "op": "type.int", "min": 0, "max": 10 },
+      "best":    { "op": "type.int", "min": 0, "max": 10, "nullable": true }
+    },
+    "initial": { "counted": 0, "best": null }
+  },
+
+  "inputs": {
+    "count": {
+      "when": { "op": "cmp.lt", "left": "$counted", "right": 10 },
+      "effects": [ { "op": "state.set", "path": "counted", "value": { "op": "math.add", "of": ["$counted", 1] } } ]
+    },
+    "mark": {
+      "effects": [ { "op": "state.set", "path": "best", "value": "$counted" } ]
+    }
+  },
+
+  "projections": {
+    "atLeastThree": { "op": "cmp.gte", "left": "$counted", "right": 10 },
+    "beatBest":   { "op": "cmp.gte", "left": "$counted", "right": "$best" }
+  }
+}

@@ -22,7 +22,7 @@ namespace Ruledger.Verify
     /// </remarks>
     public class Rendering(Xunit.Abstractions.ITestOutputHelper said)
     {
-        public static TheoryData<string> Rendered => ["approval", "reversi", "blackjack", "roster"];
+        public static TheoryData<string> Rendered => ["approval", "reversi", "blackjack", "roster", "tally"];
 
         [Theory]
         [MemberData(nameof(Rendered))]
@@ -93,6 +93,17 @@ namespace Ruledger.Verify
 
             lines.Append("    final   ").Append(Final(state)).Append('\n');
 
+            if (state.TryGetProperty("projections", out JsonElement projections))
+            {
+                first = true;
+                foreach (JsonProperty projection in projections.EnumerateObject())
+                {
+                    lines.Append(first ? "    says    " : "            ");
+                    first = false;
+                    lines.Append(projection.Name).Append(Says(projection.Value)).Append('\n');
+                }
+            }
+
             if (state.TryGetProperty("truncated", out JsonElement truncated) && truncated.GetBoolean())
             {
                 lines.Append("            the search for legal inputs stopped at the limit\n");
@@ -154,6 +165,12 @@ namespace Ruledger.Verify
             Assert.Contains(name, named);
             return name;
         }
+
+        // An answer is text and a fault is an object, so the two cannot be read for each other.
+        private static string Says(JsonElement answer) =>
+            answer.ValueKind == JsonValueKind.Object
+                ? $" faulted: {answer.GetProperty("fault").GetString()}"
+                : $" = {answer.GetString()}";
 
         private static string Final(JsonElement state)
         {

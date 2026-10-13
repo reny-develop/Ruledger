@@ -80,5 +80,21 @@ namespace Ruledger.Tests
 
             Assert.Contains("walked differently", refused.Message, StringComparison.Ordinal);
         }
+
+        // A v3 test design said nothing about projections, so nothing about them can be held
+        // against it: not the projections the new version declares, and not what they say.
+        [Fact]
+        public void ADesignThatDidNotRecordProjectionsHasNoneHeldAgainstIt()
+        {
+            string v3 = TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read("tally"), new WalkSettings(States: 3000))
+                .ToJson()
+                .Replace("ruledger/test-design/v4", "ruledger/test-design/v3", StringComparison.Ordinal);
+
+            TestDesignDiff diff = TestDesignDiff.Of(Vocabulary.Runtime, v3, Vocabulary.Read("tally-renamed"));
+
+            Assert.Empty(diff.ProjectionsGone);
+            Assert.Empty(diff.ProjectionsAppeared);
+            Assert.All(diff.Changed, change => Assert.Empty(change.ProjectionsMoved));
+        }
     }
 }

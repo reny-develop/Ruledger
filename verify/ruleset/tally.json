@@ -1,0 +1,40 @@
+{
+  // A tally that counts to ten and can mark where it stands, and says two things about a
+  // position through projections. Written because nothing else here declares a projection
+  // that a measurement walks: `signup` declares one and no measurement reads it.
+  //
+  // `best` is read by a projection and by nothing else, so whether a projection counts as an
+  // observation is what decides whether two positions that differ only in it are one state.
+  // `beatBest` cannot order a count against a mark that is not there yet, so it faults until
+  // `mark` is taken, and a fault is something a projection says about a position too.
+  "id": "tally",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Arithmetic" }
+  ],
+
+  "state": {
+    "schema": {
+      "counted": { "op": "type.int", "min": 0, "max": 10 },
+      "best":    { "op": "type.int", "min": 0, "max": 10, "nullable": true }
+    },
+    "initial": { "counted": 0, "best": null }
+  },
+
+  "inputs": {
+    "count": {
+      "when": { "op": "cmp.lt", "left": "$counted", "right": 10 },
+      "effects": [ { "op": "state.set", "path": "counted", "value": { "op": "math.add", "of": ["$counted", 1] } } ]
+    },
+    "mark": {
+      "effects": [ { "op": "state.set", "path": "best", "value": "$counted" } ]
+    }
+  },
+
+  "projections": {
+    "atLeastTen": { "op": "cmp.gte", "left": "$counted", "right": 10 },
+    "beatBest":   { "op": "cmp.gte", "left": "$counted", "right": "$best" }
+  }
+}

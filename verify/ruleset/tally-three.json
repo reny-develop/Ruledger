@@ -1,0 +1,37 @@
+{
+  // tally, with the one line `atLeastTen` is in moved: it now holds from three rather than
+  // from ten. That line, because it is the change the request this answers was about: a host
+  // shows the answer to whoever uses the application, and nothing else in the rule set moved.
+  // The name is left as it was, so that what moves is a value and not which projections there
+  // are; `tally-renamed` is the other half.
+  "id": "tally",
+  "version": "1.1.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Arithmetic" }
+  ],
+
+  "state": {
+    "schema": {
+      "counted": { "op": "type.int", "min": 0, "max": 10 },
+      "best":    { "op": "type.int", "min": 0, "max": 10, "nullable": true }
+    },
+    "initial": { "counted": 0, "best": null }
+  },
+
+  "inputs": {
+    "count": {
+      "when": { "op": "cmp.lt", "left": "$counted", "right": 10 },
+      "effects": [ { "op": "state.set", "path": "counted", "value": { "op": "math.add", "of": ["$counted", 1] } } ]
+    },
+    "mark": {
+      "effects": [ { "op": "state.set", "path": "best", "value": "$counted" } ]
+    }
+  },
+
+  "projections": {
+    "atLeastTen": { "op": "cmp.gte", "left": "$counted", "right": 3 },
+    "beatBest":   { "op": "cmp.gte", "left": "$counted", "right": "$best" }
+  }
+}

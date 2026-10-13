@@ -10,9 +10,10 @@ namespace Ruledger
 {
     /// <summary>One state the walk visited, and everything that can be observed there.</summary>
     /// <remarks>
-    /// Three things are observable about a state and all three are here: which inputs are
-    /// legal, whether it is final and with what result, and where each legal input leads.
-    /// Nothing else is written down, because nothing else can be checked.
+    /// Four things are observable about a state and all four are here: which inputs are legal,
+    /// whether it is final and with what result, where each legal input leads, and what each
+    /// of the rule set's projections says about it. They are what the runtime answers about a
+    /// position, and nothing else is written down, because nothing else can be checked.
     /// </remarks>
     public sealed class TestDesignState
     {
@@ -26,7 +27,8 @@ namespace Ruledger
             int evaluated,
             bool truncated,
             IReadOnlyList<Move> moves,
-            IReadOnlyList<Refusal>? refused = null)
+            IReadOnlyList<Refusal>? refused = null,
+            IReadOnlyList<Projection>? projections = null)
         {
             Name = name;
             From = from;
@@ -38,6 +40,7 @@ namespace Ruledger
             Truncated = truncated;
             Moves = moves;
             Refused = refused ?? [];
+            Projections = projections ?? [];
         }
 
         /// <summary>Gets what this state is called, which is its position in the walk.</summary>
@@ -102,6 +105,15 @@ namespace Ruledger
         /// are carried; a value refused by something other than a clause has none.
         /// </remarks>
         public IReadOnlyList<Refusal> Refused { get; }
+
+        /// <summary>Gets what each projection the rule set declares says about this state, in the order they are declared.</summary>
+        /// <remarks>
+        /// A host reads these and shows them to whoever uses the application, so for a rule
+        /// set with no screen they can be all of what it decides that anybody sees. Every
+        /// declared projection is here; one the runtime faulted on says so rather than being
+        /// left out.
+        /// </remarks>
+        public IReadOnlyList<Projection> Projections { get; }
 
         /// <inheritdoc />
         public override string ToString() =>
@@ -256,6 +268,42 @@ namespace Ruledger
         /// <inheritdoc />
         public override string ToString() =>
             Codes.Count == 0 ? $"{Text} refused" : $"{Text} refused: {string.Join(", ", Codes)}";
+    }
+
+    /// <summary>What one of the rule set's projections says about a state.</summary>
+    /// <remarks>
+    /// <para>
+    /// The answer is in the text form the runtime writes an argument in, so <c>false</c> and
+    /// <c>3</c> read as they would in a move; a sequence or a record is its JSON, in the order
+    /// the runtime wrote it.
+    /// </para>
+    /// <para>
+    /// A projection is asked about a position and moves nothing, so where the runtime faults
+    /// on one the walk goes on and the fault is the answer. A guard or <c>terminal</c> that
+    /// faults stops the walk instead, because without its answer there is no next state to go
+    /// to and nothing past it could be written down.
+    /// </para>
+    /// </remarks>
+    public sealed class Projection
+    {
+        internal Projection(string name, string? value, string? fault)
+        {
+            Name = name;
+            Value = value;
+            Fault = fault;
+        }
+
+        /// <summary>Gets the projection's name.</summary>
+        public string Name { get; }
+
+        /// <summary>Gets what it says, in the text form the runtime writes, or null where it faulted.</summary>
+        public string? Value { get; }
+
+        /// <summary>Gets what the runtime said when it faulted, or null where it answered.</summary>
+        public string? Fault { get; }
+
+        /// <inheritdoc />
+        public override string ToString() => Fault is null ? $"{Name} = {Value}" : $"{Name} faulted: {Fault}";
     }
 
     /// <summary>What a parameter the rule set leaves open admits, as the runtime answered it.</summary>

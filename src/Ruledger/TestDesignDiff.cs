@@ -34,7 +34,9 @@ namespace Ruledger
             IReadOnlyList<StateChange> changed,
             IReadOnlyList<TestDesignState> gone,
             IReadOnlyList<TestDesignState> appeared,
-            IReadOnlyList<(Admission Before, Admission After)> admitsMoved)
+            IReadOnlyList<(Admission Before, Admission After)> admitsMoved,
+            IReadOnlyList<string> projectionsGone,
+            IReadOnlyList<string> projectionsAppeared)
         {
             Before = before;
             After = after;
@@ -43,6 +45,8 @@ namespace Ruledger
             Gone = gone;
             Appeared = appeared;
             AdmitsMoved = admitsMoved;
+            ProjectionsGone = projectionsGone;
+            ProjectionsAppeared = projectionsAppeared;
         }
 
         /// <summary>Gets the test design that was applied.</summary>
@@ -71,6 +75,20 @@ namespace Ruledger
         /// </remarks>
         public IReadOnlyList<(Admission Before, Admission After)> AdmitsMoved { get; }
 
+        /// <summary>Gets the projections the previous version declared and this one does not, in the order it declared them.</summary>
+        /// <remarks>
+        /// Said once and not in every state, because which projections there are is not a
+        /// thing about a position; what the ones both versions declare say is compared state by
+        /// state, in <see cref="StateChange.ProjectionsMoved"/>. Empty where the previous test
+        /// design did not record projections, whose <see cref="TestDesign.Projections"/> is
+        /// then null: it said nothing about them, so nothing can be held against it.
+        /// </remarks>
+        public IReadOnlyList<string> ProjectionsGone { get; }
+
+        /// <summary>Gets the projections this version declares and the previous one did not, in the order this one declares them.</summary>
+        /// <remarks>Empty where the previous test design did not record projections, as <see cref="ProjectionsGone"/> is.</remarks>
+        public IReadOnlyList<string> ProjectionsAppeared { get; }
+
         /// <summary>Gets a value indicating whether the two versions are compared on the same state.</summary>
         /// <remarks>
         /// False says that the change moved which fields an observation depends on, so the two
@@ -84,11 +102,13 @@ namespace Ruledger
         public bool ComparedTheSameWay => Before.Observed.ToHashSet(StringComparer.Ordinal).SetEquals(After.Observed);
 
         /// <summary>Gets a value indicating whether the new version decides everything the old test design says it does.</summary>
-        public bool IsEmpty => Changed.Count == 0 && Gone.Count == 0 && Appeared.Count == 0 && AdmitsMoved.Count == 0;
+        public bool IsEmpty =>
+            Changed.Count == 0 && Gone.Count == 0 && Appeared.Count == 0 && AdmitsMoved.Count == 0
+            && ProjectionsGone.Count == 0 && ProjectionsAppeared.Count == 0;
 
         /// <summary>Applies a test design to a version of the rule set, which is to say diffs the two.</summary>
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
-        /// <param name="testDesign">A <c>ruledger/test-design/v3</c> document, or a v2 or v1 one, derived from an earlier version.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v4</c> document, or a v3, v2 or v1 one, derived from an earlier version.</param>
         /// <param name="ruleSet">The version of the rule set to apply it to, as text.</param>
         /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
         /// <returns>What the new version decides differently, and what became of the choices in the test design.</returns>
@@ -175,6 +195,12 @@ namespace Ruledger
             Where led = new(route, was, Named(before));
             Where leads = new(route, now, Named(after));
 
+            // Only what both versions declare is held state by state, and only where the
+            // previous test design recorded projections at all.
+            IReadOnlyList<string> declared = before.Projections ?? [];
+            IReadOnlyList<string> declares = before.Projections is null ? [] : after.Projections ?? [];
+            HashSet<string> shared = [.. declared.Intersect(declares, StringComparer.Ordinal)];
+
             List<StateChange> changed = [];
             List<TestDesignState> gone = [];
             int common = 0;
@@ -188,7 +214,7 @@ namespace Ruledger
                 }
 
                 common++;
-                if (Compare(before.States[at], after.States[then], led, leads) is StateChange change)
+                if (Compare(before.States[at], after.States[then], led, leads, shared) is StateChange change)
                 {
                     changed.Add(change.At(route.Text(was[at])));
                 }
@@ -207,7 +233,16 @@ namespace Ruledger
                     .Select(static pair => (pair.Before!, pair.After)),
             ];
 
-            return new TestDesignDiff(before, after, common, changed, gone, appeared, admitsMoved);
+            return new TestDesignDiff(
+                before,
+                after,
+                common,
+                changed,
+                gone,
+                appeared,
+                admitsMoved,
+                [.. declared.Where(name => !shared.Contains(name))],
+                [.. declares.Where(name => !shared.Contains(name))]);
         }
 
         // A choice names a state, and a state has two names: the number it has in the test design a
@@ -262,7 +297,7 @@ namespace Ruledger
             return named;
         }
 
-        private static StateChange? Compare(TestDesignState before, TestDesignState after, Where led, Where leads)
+        private static StateChange? Compare(TestDesignState before, TestDesignState after, Where led, Where leads, HashSet<string> shared)
         {
             Dictionary<string, Move> still = new(StringComparer.Ordinal);
             foreach (Move move in after.Moves)
@@ -307,10 +342,21 @@ namespace Ruledger
             List<Refusal> refusing = [.. after.Refused.Where(each => !was.Contains(each.ToString()) && !said.Contains(each.Text))];
             List<Refusal> notRefusing = [.. before.Refused.Where(each => !now.Contains(each.ToString()) && !said.Contains(each.Text))];
 
+            // An answer that moved, or a fault that came or went. One the runtime faulted on is
+            // compared by what it said, which is what a host would have shown.
+            Dictionary<string, Projection> answers = after.Projections.ToDictionary(static each => each.Name, StringComparer.Ordinal);
+            List<(Projection Before, Projection After)> projected =
+            [
+                .. before.Projections
+                    .Where(each => shared.Contains(each.Name) && answers.ContainsKey(each.Name))
+                    .Select(each => (Before: each, After: answers[each.Name]))
+                    .Where(static pair => !string.Equals(pair.Before.ToString(), pair.After.ToString(), StringComparison.Ordinal)),
+            ];
+
             return lost.Count == 0 && gained.Count == 0 && moved.Count == 0 && !ending && !truncation
-                && refusing.Count == 0 && notRefusing.Count == 0
+                && refusing.Count == 0 && notRefusing.Count == 0 && projected.Count == 0
                 ? null
-                : new StateChange(before, after, lost, gained, moved, ending, truncation, refusing, notRefusing);
+                : new StateChange(before, after, lost, gained, moved, ending, truncation, refusing, notRefusing, projected);
         }
 
         private static bool Same(Move move, Move other) =>
@@ -351,9 +397,9 @@ namespace Ruledger
 
     /// <summary>One state both test designs have, and what they say differently about it.</summary>
     /// <remarks>
-    /// Three things are observable about a state, so three things can differ: which inputs are
-    /// legal, whether it is final and with what result, and where each legal input leads. What
-    /// is in the state is not among them. A field added to every state is not something a test
+    /// Four things are observable about a state, so four things can differ: which inputs are
+    /// legal, whether it is final and with what result, where each legal input leads, and what
+    /// each projection says about it. What is in the state is not among them. A field added to every state is not something a test
     /// can observe, and a diff that reported it would be reporting on the writing rather than
     /// on the rules.
     /// </remarks>
@@ -368,7 +414,8 @@ namespace Ruledger
             bool ending,
             bool truncation,
             IReadOnlyList<Refusal>? refusing = null,
-            IReadOnlyList<Refusal>? notRefusing = null)
+            IReadOnlyList<Refusal>? notRefusing = null,
+            IReadOnlyList<(Projection Before, Projection After)>? projectionsMoved = null)
         {
             Name = before.Name;
             Before = before;
@@ -380,6 +427,7 @@ namespace Ruledger
             TruncationMoved = truncation;
             Refusing = refusing ?? [];
             NotRefusing = notRefusing ?? [];
+            ProjectionsMoved = projectionsMoved ?? [];
         }
 
         /// <summary>Gets how the walk arrives here, which is what this state is called in both test designs.</summary>
@@ -410,6 +458,10 @@ namespace Ruledger
 
         /// <summary>Gets the refusals the previous test design had here and the new does not, where the value is not gained or lost.</summary>
         public IReadOnlyList<Refusal> NotRefusing { get; }
+
+        /// <summary>Gets the projections both versions declare that say something else here now, each as it was and as it is.</summary>
+        /// <remarks>A fault that came or went is among them: it is what a host would have shown.</remarks>
+        public IReadOnlyList<(Projection Before, Projection After)> ProjectionsMoved { get; }
 
         /// <summary>Gets a value indicating whether the two disagree about the state being final, or about its result.</summary>
         public bool EndingMoved { get; }
@@ -453,6 +505,7 @@ namespace Ruledger
 
             what.AddRange(Refusing.Select(static each => $"now {each}"));
             what.AddRange(NotRefusing.Select(static each => $"no longer {each}"));
+            what.AddRange(ProjectionsMoved.Select(static each => $"{each.After}, was {Answer(each.Before)}"));
 
             // Said the way the test design being applied says it, because that is the one the
             // person has in front of them. The whole name is in Name, and past a few steps in
@@ -470,6 +523,9 @@ namespace Ruledger
 
         private static string Ending(TestDesignState state) =>
             state.IsTerminal ? "final " + (state.Result ?? "(no result)") : "not final";
+
+        private static string Answer(Projection projection) =>
+            projection.Fault is null ? projection.Value ?? "null" : "faulted: " + projection.Fault;
     }
 
     /// <summary>One input that is still legal in a state, and leads somewhere else than it did.</summary>

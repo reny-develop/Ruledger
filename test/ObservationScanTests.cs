@@ -72,5 +72,65 @@ namespace Ruledger.Tests
             Assert.Empty(scan.Collapsed);
         }
 
+        // What a projection says is written down for every state, so a field only a
+        // projection reads decides whether two positions are one state as a guard's would.
+        [Fact]
+        public void AFieldOnlyAProjectionReadsIsKept()
+        {
+            const string ruleSet = """
+                {
+                  "id": "label", "version": "1.0.0",
+                  "state": {
+                    "schema": { "stage": {}, "title": {} },
+                    "initial": { "stage": "open", "title": "" }
+                  },
+                  "inputs": {
+                    "close": {
+                      "when": { "op": "cmp.eq", "left": "$stage", "right": "open" },
+                      "effects": [ { "op": "state.set", "path": "stage", "value": "closed" } ]
+                    }
+                  },
+                  "projections": { "heading": "$title" }
+                }
+                """;
+
+            ObservationScan scan = ObservationScan.Of(ruleSet);
+
+            Assert.Equal(["stage", "title"], scan.Observed);
+            Assert.Empty(scan.Collapsed);
+        }
+
+        // A composite answers for its own projections and offers none of a component's, so
+        // the one document it stands for would not have them, and a field only a component's
+        // projection reads is not the composite's to keep.
+        [Fact]
+        public void AComponentsProjectionIsNotTheCompositesToObserve()
+        {
+            const string component = """
+                {
+                  "id": "door", "version": "1.0.0",
+                  "state": {
+                    "schema": { "open": {}, "colour": {} },
+                    "initial": { "open": false, "colour": "red" }
+                  },
+                  "inputs": {
+                    "open": {
+                      "when": { "op": "cmp.eq", "left": "$open", "right": false },
+                      "effects": [ { "op": "state.set", "path": "open", "value": true } ]
+                    }
+                  },
+                  "projections": { "paint": "$colour" }
+                }
+                """;
+            const string composite = """
+                { "id": "house", "version": "1.0.0", "uses": [ { "ruleSet": "door", "version": "^1.0", "as": "front" } ] }
+                """;
+
+            Dictionary<string, string> components = new(StringComparer.Ordinal) { ["door"] = component };
+
+            Assert.Equal(["open", "colour"], ObservationScan.Of(component).Observed);
+            Assert.Equal(["front.open"], ObservationScan.Of(composite, components).Observed);
+            Assert.Equal(["front.colour"], ObservationScan.Of(composite, components).Collapsed);
+        }
     }
 }

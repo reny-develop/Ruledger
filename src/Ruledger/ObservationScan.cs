@@ -16,8 +16,8 @@ namespace Ruledger
     /// </para>
     /// <para>
     /// The set is derived, never declared. A guard, a parameter domain, an input's
-    /// <c>validate</c> clauses and the two <c>terminal</c> expressions are the only places an
-    /// observation can come from, so what
+    /// <c>validate</c> clauses, the two <c>terminal</c> expressions and the rule set's
+    /// <c>projections</c> are the only places an observation can come from, so what
     /// those read — through definitions, and through the effects that write what they read —
     /// is the whole of it. The second half is why this is a fixed point rather than a walk:
     /// a field no guard mentions still reaches an observation if an effect writes an observed
@@ -48,7 +48,7 @@ namespace Ruledger
         private readonly HashSet<string> reached = new(StringComparer.Ordinal);
         private readonly HashSet<string> held = new(StringComparer.Ordinal);
 
-        private ObservationScan(JsonElement root, IReadOnlyDictionary<string, string>? components, bool whole = false)
+        private ObservationScan(JsonElement root, IReadOnlyDictionary<string, string>? components, bool whole = false, bool component = false)
         {
             ReadSchema(root);
             ReadComponents(root, components);
@@ -61,7 +61,7 @@ namespace Ruledger
             else
             {
                 List<JsonElement> effects = [];
-                foreach (JsonElement point in ObservationPoints(root, effects))
+                foreach (JsonElement point in ObservationPoints(root, effects, component))
                 {
                     Read(point, this.reached, []);
                 }
@@ -140,7 +140,11 @@ namespace Ruledger
         // that build one are here. `actor` is not a fourth thing that can be observed; it is
         // part of the first, and leaving it out would collapse a field only it reads while
         // the test design went on printing two different movers for the one state.
-        private static IEnumerable<JsonElement> ObservationPoints(JsonElement root, List<JsonElement> effects)
+        //
+        // A component's projections are not among them where it is held: a composite answers
+        // for its own and offers none of a component's, so the one document it stands for
+        // would not have them either.
+        private static IEnumerable<JsonElement> ObservationPoints(JsonElement root, List<JsonElement> effects, bool component)
         {
             if (root.TryGetProperty("inputs", out JsonElement inputs)
                 && inputs.ValueKind == JsonValueKind.Object)
@@ -211,6 +215,14 @@ namespace Ruledger
                     yield return result;
                 }
             }
+
+            // What a projection says is written down for every state, so two positions that
+            // answer one differently are two states: collapsed, the walk would write one answer
+            // for both and the other position's answer nowhere.
+            if (!component && root.TryGetProperty("projections", out JsonElement projections))
+            {
+                yield return projections;
+            }
         }
 
         private void ReadSchema(JsonElement root)
@@ -264,7 +276,8 @@ namespace Ruledger
                         + "no sign that any were.");
                 }
 
-                ObservationScan component = Of(document, components);
+                using JsonDocument parsed = JsonDocument.Parse(document, ReaderOptions);
+                ObservationScan component = new(parsed.RootElement, components, component: true);
                 List<string> held = [.. component.Declared.Select(field => alias + "." + field)];
 
                 this.aliases[alias] = held;

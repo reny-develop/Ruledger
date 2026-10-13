@@ -123,6 +123,7 @@ namespace Ruledger.Verify
         [InlineData("approval")]
         [InlineData("roster")]
         [InlineData("reversi")]
+        [InlineData("tally")]
         public void ADesignAppliedToTheVersionItCameFromFindsNothing(string ruleSet)
         {
             TestDesignDiff diff = Fixture.Apply(Fixture.Walk(ruleSet, 3000), ruleSet);

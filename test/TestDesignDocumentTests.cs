@@ -23,6 +23,7 @@ namespace Ruledger.Tests
         [InlineData("approval")]
         [InlineData("reversi")]
         [InlineData("blackjack")]
+        [InlineData("tally")]
         public void WhatIsWrittenReadsBackAsWhatItWas(string ruleSet)
         {
             string written = Derive(ruleSet).ToJson();
@@ -35,7 +36,7 @@ namespace Ruledger.Tests
         {
             JsonElement design = Parse(Derive("approval").ToJson());
 
-            Assert.Equal("ruledger/test-design/v3", design.GetProperty("$schema").GetString());
+            Assert.Equal("ruledger/test-design/v4", design.GetProperty("$schema").GetString());
             Assert.Equal("approval@1.0.0", design.GetProperty("ruleSet").GetString());
             Assert.Equal(300, design.GetProperty("settings").GetProperty("states").GetInt32());
             Assert.Equal(["stage"], design.GetProperty("observed").EnumerateArray().Select(field => field.GetString()));
@@ -157,6 +158,42 @@ namespace Ruledger.Tests
                     Assert.False(move.TryGetProperty("to", out _));
                     Assert.False(move.TryGetProperty("lands", out _));
                 });
+        }
+
+        // What each projection says is written by name in every state, in the text form the
+        // runtime writes an argument in, and the names once at the top. One the runtime
+        // faulted on is an object saying so, which no answer can be taken for.
+        [Fact]
+        public void AStateSaysWhatEachProjectionSaysAboutIt()
+        {
+            JsonElement design = Parse(Derive("tally").ToJson());
+            JsonElement opening = design.GetProperty("states")[0].GetProperty("projections");
+
+            Assert.Equal(["atLeastTen", "beatBest"], design.GetProperty("projections").EnumerateArray().Select(name => name.GetString()));
+            Assert.Equal("false", opening.GetProperty("atLeastTen").GetString());
+            Assert.StartsWith("cmp.gte:", opening.GetProperty("beatBest").GetProperty("fault").GetString());
+        }
+
+        // A rule set that declares none writes what it always wrote.
+        [Fact]
+        public void ARuleSetWithoutProjectionsWritesNone()
+        {
+            JsonElement design = Parse(Derive("approval").ToJson());
+
+            Assert.False(design.TryGetProperty("projections", out _));
+            Assert.All(design.GetProperty("states").EnumerateArray(), state => Assert.False(state.TryGetProperty("projections", out _)));
+            Assert.Equal([], TestDesign.FromJson(design.GetRawText()).Projections);
+        }
+
+        // A v3 document said nothing about projections, which is not the same as a rule set
+        // that declares none, so it is read as one that did not record them.
+        [Fact]
+        public void AV3DesignIsReadAsOneThatDidNotRecordProjections()
+        {
+            string v3 = Derive("approval").ToJson()
+                .Replace("ruledger/test-design/v4", "ruledger/test-design/v3", StringComparison.Ordinal);
+
+            Assert.Null(TestDesign.FromJson(v3).Projections);
         }
 
         // One object per state, in the order the walk arrived, which is everything a

@@ -5,14 +5,15 @@ Ruledger implements
 [Rulealize](https://github.com/reny-develop/Rulealize).
 
 It walks a rule set and writes down, for every state it visits, everything that can be observed
-there: which inputs are legal, whether the state is terminal and with what `Result`, and where
-each legal input leads. That enumeration is the test design. It is mechanical, so it does not
+there: which inputs are legal, whether the state is terminal and with what `Result`, where
+each legal input leads, and what each of the rule set's projections says about it. That
+enumeration is the test design. It is mechanical, so it does not
 forget. It is also tautological, so it does not know what is correct: it states what the
 rule set decides, never what it should decide. Supplying that judgement is the developer's job,
 and it is the only part of the work Ruledger refuses to guess at.
 
 Change the rule set, run it again, and the diff is the blast radius — which states gained or
-lost a legal input, which outcomes moved. Edits the developer made to the previous test
+lost a legal input, which outcomes moved, where a projection says something else. Edits the developer made to the previous test
 design are carried over; whatever could not be carried is reported instead of silently reset.
 How far the walk goes is a number of states it may visit, and where it stopped for want of
 them is reported as that, never as nothing being there.
@@ -53,7 +54,8 @@ TestDesignDiff diff = TestDesignDiff.Of(
 foreach (StateChange change in diff.Changed)
 {
     // change.Before and change.After are the state as each design has it; Lost, Gained,
-    // Moved, Refusing and NotRefusing are what the rules decide differently there.
+    // Moved, Refusing, NotRefusing and ProjectionsMoved are what the rules decide
+    // differently there.
 }
 ```
 
@@ -88,7 +90,7 @@ Every claim about Ruledger is a number, and every one of them comes out of a run
 dotnet test verify/Ruledger.Verify.csproj --logger "console;verbosity=detailed"
 ```
 
-59 measurements, about four minutes. They walk the rule sets in `verify/ruleset/`, print what
+65 measurements, about four minutes. They walk the rule sets in `verify/ruleset/`, print what
 they found, and fail if any of it has moved. Nothing about this project is a figure somebody
 wrote down once: the numbers in these documents are the numbers that command prints, and the
 way to check one is to run it.
@@ -103,6 +105,7 @@ way to check one is to run it.
 | Apply the previous test design to a new version of the rule set and report what changed | **In** |
 | Carry a human's edits across a change to the rule set | **In** |
 | Walk from a state of a case rather than where the rule set begins | **In**. For a rule set whose initial state is the shape of a case and offers nothing until one is supplied. The state travels in the test design |
+| Write down what each projection says about every state | **In**. In the text form the runtime writes, and where the runtime faults on one, the fault; a projection moves nothing, so the walk goes on. A field only a projection reads keeps positions apart as a guard's would. A projection added or taken away is reported once, not per state |
 | Walk a parameter the rule set leaves open | **In**. Every value its schema admits where those can be named — an enumeration, a boolean, a bounded whole number — and otherwise only the values a person wrote as choices. It never makes one up. The values refused are written down with what refused them, and what each parameter admits once |
 | Verify anything outside the rule set — screens, persistence, integrations | Out. Not a limit in principle: what Ruledger reaches is what the rule set expresses, and that is extended by adding vocabulary, not by changing Ruledger |
 | Visualize or edit the rule set | Out. A rule set is still JSON, which is hard to hand-write even for an engineer |
@@ -127,7 +130,10 @@ are on nuget.org.
 Since then it runs on the Rulealize that leaves a parameter open and lets an input `validate`
 its arguments — and name, with `invalid`, the refusal of a value the schema does not admit — and the test design it writes became `ruledger/test-design/v2` for the one shape that
 added — a move waiting for a value. It is `ruledger/test-design/v3` since a walk can begin in a
-state of a case, which the design carries as `start`. A v2 or v1 test design is still read.
+state of a case, which the design carries as `start`, and `ruledger/test-design/v4` since it
+writes down what a rule set's projections say: a host shows them, so a change to one is a
+change the rules made. A v3, v2 or v1 test design is still read; a v3 one said nothing about
+projections, so nothing about them is held against it.
 
 Until `Ruledger.Cli` 1.3.0 the library shipped only inside the tool. It is a package of its own
 from 1.0.0, and the tool has a repository of its own, because a host that draws a diff on a screen

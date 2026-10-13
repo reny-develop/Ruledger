@@ -38,7 +38,8 @@ namespace Ruledger
             IReadOnlyList<TestDesignState> states,
             IReadOnlyList<EditResult> edits,
             int unreached,
-            IReadOnlyList<Admission>? admits = null)
+            IReadOnlyList<Admission>? admits = null,
+            IReadOnlyList<string>? projections = null)
         {
             RuleSet = ruleSet;
             Settings = settings;
@@ -49,6 +50,7 @@ namespace Ruledger
             Edits = edits;
             Unreached = unreached;
             Admits = admits ?? [];
+            Projections = projections;
         }
 
         /// <summary>Gets what the rule set calls itself, as <c>id@version</c>.</summary>
@@ -107,6 +109,20 @@ namespace Ruledger
         /// </para>
         /// </remarks>
         public IReadOnlyList<Admission> Admits { get; }
+
+        /// <summary>Gets the names of the projections the rule set declares, in the order it declares them, or null where the test design did not record them.</summary>
+        /// <remarks>
+        /// <para>
+        /// Once and not per state, for the reason <see cref="Admits"/> is: which projections
+        /// there are is read off the rule set, which the position does not change, and a
+        /// projection added or taken away is one thing that happened and not one per state.
+        /// </para>
+        /// <para>
+        /// Null for a test design written before projections were observed, which said nothing
+        /// about them; that is not the same as a rule set that declares none.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyList<string>? Projections { get; }
 
         /// <summary>Gets how many landings there were no states left to visit.</summary>
         /// <remarks>
@@ -197,13 +213,13 @@ namespace Ruledger
         }
 
         /// <summary>Reads a test design back.</summary>
-        /// <param name="testDesign">A <c>ruledger/test-design/v3</c> document, or a v2 or v1 one.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v4</c> document, or a v3, v2 or v1 one.</param>
         /// <returns>What it says.</returns>
         /// <exception cref="JsonException">The text is not JSON.</exception>
         /// <exception cref="InvalidOperationException">The text is not a test design.</exception>
         public static TestDesign FromJson(string testDesign) => TestDesignDocument.Read(testDesign);
 
-        /// <summary>Writes this test design as a <c>ruledger/test-design/v3</c> document.</summary>
+        /// <summary>Writes this test design as a <c>ruledger/test-design/v4</c> document.</summary>
         /// <returns>The document.</returns>
         /// <remarks>
         /// This is the test design — what a person reads against what they meant, what they put
@@ -291,7 +307,8 @@ namespace Ruledger
                             ? result
                             : new EditResult(edit, EditOutcome.NotReached))],
                     this.unreached,
-                    this.admits);
+                    this.admits,
+                    rules.Projections);
             }
 
             // A composite keeps each component's state under its alias, and keeps it as a state
@@ -363,6 +380,11 @@ namespace Ruledger
                 entry.IsTerminal = terminal.IsTerminal;
                 entry.Result = terminal.Result;
 
+                foreach (string projection in rules.Projections)
+                {
+                    entry.Projections.Add(Project(projection, state));
+                }
+
                 ValidInputSet legal = rules.GetValidInputs(state, settings.Candidates);
                 entry.Evaluated = legal.Evaluated;
                 entry.Truncated = legal.Truncated;
@@ -382,6 +404,28 @@ namespace Ruledger
                 entry.Ahead.AddRange(Ordered(name, entry.Moves, onward, legal));
                 this.descending.Push(entry);
                 return name;
+            }
+
+            // Asked of every state and not only of the ones a host happens to show, and written
+            // as the runtime answered: a fault is the answer where there is one, because a
+            // projection moves nothing and the walk does not need it to go on.
+            private Projection Project(string projection, string state)
+            {
+                string answer;
+                try
+                {
+                    answer = rules.Project(projection, state);
+                }
+                catch (RuleEvaluationException fault)
+                {
+                    return new Projection(projection, null, fault.Message);
+                }
+
+                JsonNode? value = JsonNode.Parse(answer);
+                return new Projection(
+                    projection,
+                    value is JsonObject or JsonArray ? value.ToJsonString(Compact) : Text(value),
+                    null);
             }
 
             // A move offered with a parameter left open is waiting for a value from outside,
@@ -615,6 +659,12 @@ namespace Ruledger
                 _ => null,
             };
 
+            // One line, and a card written `♠` rather than escaped, since a person reads it.
+            private static readonly JsonSerializerOptions Compact = new()
+            {
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            };
+
             // In the text form the runtime writes an argument in, so that a value somebody
             // filled in and one a domain produced read the same.
             private static string Text(JsonNode? value) => value switch
@@ -740,8 +790,10 @@ namespace Ruledger
 
                 public List<Refusal> Refused { get; } = [];
 
+                public List<Projection> Projections { get; } = [];
+
                 public TestDesignState Close() =>
-                    new(name, from, by, state, IsTerminal, Result, Evaluated, Truncated, Moves, Refused);
+                    new(name, from, by, state, IsTerminal, Result, Evaluated, Truncated, Moves, Refused, Projections);
             }
         }
     }
