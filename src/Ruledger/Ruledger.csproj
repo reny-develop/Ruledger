@@ -44,7 +44,7 @@
     ObservationScan.
   -->
   <ItemGroup>
-    <PackageReference Include="Rulealize" Version="0.12.0" />
+    <PackageReference Include="Rulealize" Version="0.15.0" />
   </ItemGroup>
 
   <!--

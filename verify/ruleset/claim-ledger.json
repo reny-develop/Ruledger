@@ -1,0 +1,18 @@
+{
+  // Every month, each a `claim-month` at its key. The key is written as a schema — any seven
+  // characters — so there is a month at every key it admits, and nothing creates one. The
+  // schema does not name its keys, so the walk goes only to the months a person wrote in a
+  // choice's `at`, and says in every position that it is waiting for one.
+  "id": "claim-ledger",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" },
+    { "plugin": "Ruledger.Fixture.Store" }
+  ],
+
+  "uses": [
+    { "ruleSet": "claim-month", "version": "^1.0", "as": "months",
+      "many": { "key": { "op": "type.string", "minLength": 7, "maxLength": 7 } } }
+  ]
+}

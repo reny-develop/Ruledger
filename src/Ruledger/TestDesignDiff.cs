@@ -36,7 +36,8 @@ namespace Ruledger
             IReadOnlyList<TestDesignState> appeared,
             IReadOnlyList<(Admission Before, Admission After)> admitsMoved,
             IReadOnlyList<string> projectionsGone,
-            IReadOnlyList<string> projectionsAppeared)
+            IReadOnlyList<string> projectionsAppeared,
+            IReadOnlyList<(KeyAdmission Before, KeyAdmission After)> keysMoved)
         {
             Before = before;
             After = after;
@@ -47,6 +48,7 @@ namespace Ruledger
             AdmitsMoved = admitsMoved;
             ProjectionsGone = projectionsGone;
             ProjectionsAppeared = projectionsAppeared;
+            KeysMoved = keysMoved;
         }
 
         /// <summary>Gets the test design that was applied.</summary>
@@ -74,6 +76,10 @@ namespace Ruledger
         /// before this was recorded has none, which is not the rules having changed.
         /// </remarks>
         public IReadOnlyList<(Admission Before, Admission After)> AdmitsMoved { get; }
+
+        /// <summary>Gets the collections whose keys admit something else now, each as it was and as it is.</summary>
+        /// <remarks>Only collections both test designs record, for the reason <see cref="AdmitsMoved"/> is.</remarks>
+        public IReadOnlyList<(KeyAdmission Before, KeyAdmission After)> KeysMoved { get; }
 
         /// <summary>Gets the projections the previous version declared and this one does not, in the order it declared them.</summary>
         /// <remarks>
@@ -104,11 +110,11 @@ namespace Ruledger
         /// <summary>Gets a value indicating whether the new version decides everything the old test design says it does.</summary>
         public bool IsEmpty =>
             Changed.Count == 0 && Gone.Count == 0 && Appeared.Count == 0 && AdmitsMoved.Count == 0
-            && ProjectionsGone.Count == 0 && ProjectionsAppeared.Count == 0;
+            && ProjectionsGone.Count == 0 && ProjectionsAppeared.Count == 0 && KeysMoved.Count == 0;
 
         /// <summary>Applies a test design to a version of the rule set, which is to say diffs the two.</summary>
         /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded.</param>
-        /// <param name="testDesign">A <c>ruledger/test-design/v4</c> document, or a v3, v2 or v1 one, derived from an earlier version.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v5</c> document, or a v4, v3, v2 or v1 one, derived from an earlier version.</param>
         /// <param name="ruleSet">The version of the rule set to apply it to, as text.</param>
         /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier.</param>
         /// <returns>What the new version decides differently, and what became of the choices in the test design.</returns>
@@ -128,7 +134,31 @@ namespace Ruledger
             RuleRuntime runtime,
             string testDesign,
             string ruleSet,
-            IReadOnlyDictionary<string, string>? components = null)
+            IReadOnlyDictionary<string, string>? components = null) =>
+            Of(runtime, testDesign, ruleSet, components, null);
+
+        /// <summary>Applies a test design to a version of a rule set that keeps instances as documents of their own.</summary>
+        /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded, its store plugins among them.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v5</c> document, or an earlier one, derived from an earlier version.</param>
+        /// <param name="ruleSet">The version of the rule set to apply it to, as text.</param>
+        /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier, or null where it holds none.</param>
+        /// <param name="starts">The state documents a <c>many</c> names as its <c>start</c>, by name, or null where none does.</param>
+        /// <returns>What the new version decides differently, and what became of the choices in the test design.</returns>
+        /// <remarks>
+        /// As the overload without <paramref name="starts"/>, and the walk is given a
+        /// <see cref="MemoryStateStore"/> in place of the store the rule set names, as
+        /// <see cref="TestDesign.Derive(RuleRuntime, string, IReadOnlyDictionary{string, string}?, IReadOnlyDictionary{string, string}?, string?, WalkSettings?, IReadOnlyList{TestDesignEdit}?)"/> is.
+        /// </remarks>
+        /// <exception cref="JsonException">The text is not JSON.</exception>
+        /// <exception cref="InvalidOperationException">The text is not a test design, or a rule set named in <c>uses</c> was not supplied.</exception>
+        /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
+        /// <exception cref="RuleDocumentException">The test design began in a position that is not one of this version.</exception>
+        public static TestDesignDiff Of(
+            RuleRuntime runtime,
+            string testDesign,
+            string ruleSet,
+            IReadOnlyDictionary<string, string>? components,
+            IReadOnlyDictionary<string, string>? starts)
         {
             ArgumentNullException.ThrowIfNull(runtime);
             ArgumentNullException.ThrowIfNull(testDesign);
@@ -145,7 +175,8 @@ namespace Ruledger
                 before.Settings,
                 ObservationScan.Of(ruleSet, components),
                 Carried(before, route, routes),
-                before.Start);
+                before.Start,
+                starts);
 
             return Between(before, after, route, routes, route.Of(after));
         }
@@ -233,6 +264,14 @@ namespace Ruledger
                     .Select(static pair => (pair.Before!, pair.After)),
             ];
 
+            (KeyAdmission Before, KeyAdmission After)[] keysMoved =
+            [
+                .. after.Keys
+                    .Select(now => (Before: before.Keys.FirstOrDefault(was => was.Collection == now.Collection), After: now))
+                    .Where(static pair => pair.Before is not null && pair.Before.Schema != pair.After.Schema)
+                    .Select(static pair => (pair.Before!, pair.After)),
+            ];
+
             return new TestDesignDiff(
                 before,
                 after,
@@ -242,7 +281,8 @@ namespace Ruledger
                 appeared,
                 admitsMoved,
                 [.. declared.Where(name => !shared.Contains(name))],
-                [.. declares.Where(name => !shared.Contains(name))]);
+                [.. declares.Where(name => !shared.Contains(name))],
+                keysMoved);
         }
 
         // A choice names a state, and a state has two names: the number it has in the test design a
@@ -263,7 +303,7 @@ namespace Ruledger
                         state = route.Text(routes[at]);
                     }
 
-                    return new TestDesignEdit(state, result.Edit.Input, result.Edit.Arguments);
+                    return new TestDesignEdit(state, result.Edit.Input, result.Edit.At, result.Edit.Arguments);
                 }),
             ];
         }
@@ -372,6 +412,9 @@ namespace Ruledger
             // Not a route, and not the opening either: what the walk stopped in front of.
             private const int Nowhere = -1;
 
+            // Where a step not followed again was followed, set apart from a route it arrived at.
+            private const int FollowedAt = int.MinValue / 2;
+
             // Held against each other by the number of the route, which the two test designs
             // share, and written out only where they turn out to differ: spelling a route out
             // costs the depth of the walk, and most states have nothing to report.
@@ -380,7 +423,9 @@ namespace Ruledger
                 .. move.Landings.Select(landing => (
                     Route.Drew(landing.Draw),
                     landing.Probability,
-                    landing.To is not null && named.TryGetValue(landing.To, out int at) ? routes[at] : Nowhere)),
+                    landing.To is not null && named.TryGetValue(landing.To, out int at) ? routes[at]
+                    : landing.As is not null && named.TryGetValue(landing.As, out int from) ? FollowedAt - routes[from]
+                    : Nowhere)),
             ];
 
             public IReadOnlyList<string> Text(Move move) =>
@@ -388,7 +433,9 @@ namespace Ruledger
                 .. Of(move).Select(landing =>
                 {
                     string chance = landing.Probability.ToString(CultureInfo.InvariantCulture);
-                    string where = landing.To == Nowhere ? "(not reached)" : route.Text(landing.To);
+                    string where = landing.To == Nowhere ? "(not reached)"
+                        : landing.To <= FollowedAt ? "as from " + route.Text(FollowedAt - landing.To)
+                        : route.Text(landing.To);
                     return landing.Drew.Length == 0 ? $"{chance} -> {where}" : $"{landing.Drew} {chance} -> {where}";
                 }),
             ];

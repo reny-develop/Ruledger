@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Ruledger
 {
-    /// <summary>The <c>ruledger/test-design/v4</c> document: a test design, written down.</summary>
+    /// <summary>The <c>ruledger/test-design/v5</c> document: a test design, written down.</summary>
     /// <remarks>
     /// <para>
     /// A fourth document beside the three Rulealize already reads, and made of them: a state
@@ -47,16 +47,30 @@ namespace Ruledger
     /// a v4 walk is not the walk a v3 document recorded, and a v3 document is read as one that
     /// said nothing about projections rather than as one whose rule set declares none.
     /// </para>
+    /// <para>
+    /// v5 adds what a rule set that keeps instances as documents of their own needs: a state
+    /// whose position is several documents writes <c>documents</c> in place of <c>state</c>, a
+    /// move, a refusal and an edit at an instance say <c>at</c>, a move waiting for a key says
+    /// so, and <c>keys</c> says once what each collection written as a schema admits. A v4
+    /// reader would take a state with no <c>state</c> for a malformed one and every move at an
+    /// instance for the same move at the rule set's own document. A rule set that keeps none
+    /// writes what v4 wrote, so a v4 document is read as a v5 one.
+    /// </para>
     /// </remarks>
     internal static class TestDesignDocument
     {
-        private const string Schema = "ruledger/test-design/v4";
+        private const string Schema = "ruledger/test-design/v5";
 
-        // What earlier Ruledgers wrote, read as they stand: every v3 document is a v4 document
+        // What earlier Ruledgers wrote, read as they stand: every v4 document is a v5 document
+        // whose rule set keeps no instances, every v3 document is a v4 document
         // that recorded no projections, every v2 document is a v3 document that began where
         // the rule set begins, and every v1 document is a v2 document that happens to have no
         // move waiting for a value.
-        private static readonly string[] Earlier = ["ruledger/test-design/v3", "ruledger/test-design/v2", "ruledger/test-design/v1"];
+        private static readonly string[] Earlier =
+            ["ruledger/test-design/v4", "ruledger/test-design/v3", "ruledger/test-design/v2", "ruledger/test-design/v1"];
+
+        // The version that first recorded projections. A document older than it said nothing about them.
+        private static readonly string[] Unprojected = ["ruledger/test-design/v3", "ruledger/test-design/v2", "ruledger/test-design/v1"];
 
         public static string Write(TestDesign design)
         {
@@ -94,6 +108,7 @@ namespace Ruledger
                 WriteNames(writer, "observed", design.Observed);
                 WriteNames(writer, "collapsed", design.Collapsed);
                 WriteAdmits(writer, design.Admits);
+                WriteKeys(writer, design.Keys);
 
                 // Left out where the rule set declares none, as `admits` is where nothing is
                 // open; the schema is what says whether a document could have said any.
@@ -148,10 +163,70 @@ namespace Ruledger
                 [.. root.GetProperty("edits").EnumerateArray().Select(ReadEdit)],
                 root.GetProperty("unreached").GetInt32(),
                 ReadAdmits(root),
-                named != Schema ? null
+                Unprojected.Contains(named) ? null
                     : root.TryGetProperty("projections", out _) ? ReadNames(root, "projections")
-                    : []);
+                    : [],
+                ReadKeys(root));
         }
+
+        // By collection, in the order the rule set declares them. Left out where there is none.
+        private static void WriteKeys(Utf8JsonWriter writer, IReadOnlyList<KeyAdmission> keys)
+        {
+            if (keys.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartObject("keys");
+            foreach (KeyAdmission each in keys)
+            {
+                writer.WritePropertyName(each.Collection);
+                Embed(writer, each.Schema);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        private static IReadOnlyList<KeyAdmission> ReadKeys(JsonElement root) =>
+            root.TryGetProperty("keys", out JsonElement keys) && keys.ValueKind == JsonValueKind.Object
+                ? [.. keys.EnumerateObject().Select(static each => new KeyAdmission(each.Name, JsonSerializer.Serialize(each.Value)))]
+                : [];
+
+        // An `at` as an input document has it: by alias, outermost first. A key a move is
+        // waiting for is null. Left out where there is none.
+        private static void WriteAt(Utf8JsonWriter writer, IEnumerable<KeyValuePair<string, string?>> at)
+        {
+            bool started = false;
+            foreach ((string alias, string? key) in at)
+            {
+                if (!started)
+                {
+                    writer.WriteStartObject("at");
+                    started = true;
+                }
+
+                if (key is null)
+                {
+                    writer.WriteNull(alias);
+                }
+                else
+                {
+                    writer.WriteString(alias, key);
+                }
+            }
+
+            if (started)
+            {
+                writer.WriteEndObject();
+            }
+        }
+
+        private static IReadOnlyList<KeyValuePair<string, string?>> ReadAt(JsonElement node) =>
+            node.TryGetProperty("at", out JsonElement at) && at.ValueKind == JsonValueKind.Object
+                ? [.. at.EnumerateObject().Select(static each => KeyValuePair.Create(
+                    each.Name,
+                    each.Value.ValueKind == JsonValueKind.String ? each.Value.GetString() : null))]
+                : [];
 
         private static void WriteNames(Utf8JsonWriter writer, string name, IReadOnlyList<string> names)
         {
@@ -216,6 +291,7 @@ namespace Ruledger
                 // left as it was written, because there is nothing truer to say about it.
                 writer.WriteString("state", result.Name ?? result.Edit.State);
                 writer.WriteString("input", result.Edit.Input);
+                WriteAt(writer, result.Edit.At.Select(static key => KeyValuePair.Create(key.Key, (string?)key.Value)));
                 WriteArguments(writer, result.Edit.Arguments);
 
                 // Carried or not, and never anything else: a choice that could not be taken is
@@ -244,8 +320,27 @@ namespace Ruledger
                 writer.WriteString("by", state.By);
             }
 
-            writer.WritePropertyName("state");
-            Embed(writer, state.State);
+            // A position of several documents is written as all of them, by address, and
+            // the rule set's own is the first of them rather than written twice.
+            if (state.KeepsInstances)
+            {
+                writer.WriteStartArray("documents");
+                foreach ((string at, string document) in state.Documents)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("at", at);
+                    writer.WritePropertyName("state");
+                    Embed(writer, document);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+            }
+            else
+            {
+                writer.WritePropertyName("state");
+                Embed(writer, state.State);
+            }
 
             writer.WriteNumber("evaluated", state.Evaluated);
             if (state.Truncated)
@@ -307,6 +402,7 @@ namespace Ruledger
                 {
                     writer.WriteStartObject();
                     writer.WriteString("input", refusal.Input);
+                    WriteAt(writer, refusal.At);
                     WriteArguments(writer, refusal.Arguments);
                     WriteNames(writer, "codes", refusal.Codes);
                     writer.WriteEndObject();
@@ -320,7 +416,15 @@ namespace Ruledger
         private static void WriteMove(Utf8JsonWriter writer, Move move)
         {
             writer.WriteStartObject();
-            writer.WriteString("input", move.Input);
+
+            // A move waiting for a key is no input yet: which instance is what it waits for,
+            // and what is offered there is not known until somebody says.
+            if (!move.At.Any(static key => key.Value is null))
+            {
+                writer.WriteString("input", move.Input);
+            }
+
+            WriteAt(writer, move.At);
             WriteArguments(writer, move.Arguments);
 
             if (move.Actor is not null)
@@ -333,7 +437,11 @@ namespace Ruledger
                 WriteNames(writer, "open", move.Open);
             }
 
-            if (move.Landings.Count == 1 && move.Landings[0].Draw is null)
+            if (move.Landings.Count == 1 && move.Landings[0].As is string followed)
+            {
+                writer.WriteString("as", followed);
+            }
+            else if (move.Landings.Count == 1 && move.Landings[0].Draw is null)
             {
                 WriteTarget(writer, move.Landings[0].To);
             }
@@ -420,17 +528,28 @@ namespace Ruledger
                 : EditOutcome.Carried;
 
             return new EditResult(
-                new TestDesignEdit(state, edit.GetProperty("input").GetString() ?? string.Empty, ReadArguments(edit)),
+                new TestDesignEdit(
+                    state,
+                    edit.GetProperty("input").GetString() ?? string.Empty,
+                    [.. ReadAt(edit).Select(static key => KeyValuePair.Create(key.Key, key.Value ?? string.Empty))],
+                    ReadArguments(edit)),
                 outcome,
                 outcome == EditOutcome.NotReached ? null : state);
         }
 
-        private static TestDesignState ReadState(JsonElement state) =>
-            new(
+        private static TestDesignState ReadState(JsonElement state)
+        {
+            List<KeyValuePair<string, string>>? documents = state.TryGetProperty("documents", out JsonElement kept)
+                ? [.. kept.EnumerateArray().Select(static each => KeyValuePair.Create(
+                    each.GetProperty("at").GetString() ?? string.Empty,
+                    each.GetProperty("state").GetRawText()))]
+                : null;
+
+            return new(
                 state.GetProperty("name").GetString() ?? string.Empty,
                 state.TryGetProperty("from", out JsonElement from) ? from.GetString() : null,
                 state.TryGetProperty("by", out JsonElement by) ? by.GetString() : null,
-                state.GetProperty("state").GetRawText(),
+                documents is null ? state.GetProperty("state").GetRawText() : documents.First(static each => each.Key == "/").Value,
                 state.TryGetProperty("terminal", out JsonElement terminal),
                 terminal.ValueKind == JsonValueKind.Object && terminal.TryGetProperty("result", out JsonElement result)
                     ? result.GetString()
@@ -442,13 +561,16 @@ namespace Ruledger
                     ? [.. refused.EnumerateArray().Select(static each => new Refusal(
                         each.GetProperty("input").GetString() ?? string.Empty,
                         ReadArguments(each),
-                        ReadNames(each, "codes")))]
+                        ReadNames(each, "codes"),
+                        ReadAt(each)))]
                     : null,
                 state.TryGetProperty("projections", out JsonElement projections) && projections.ValueKind == JsonValueKind.Object
                     ? [.. projections.EnumerateObject().Select(static each => each.Value.ValueKind == JsonValueKind.Object
                         ? new Projection(each.Name, null, each.Value.GetProperty("fault").GetString() ?? string.Empty)
                         : new Projection(each.Name, each.Value.GetString(), null))]
-                    : null);
+                    : null,
+                documents);
+        }
 
         private static Move ReadMove(JsonElement move)
         {
@@ -466,20 +588,28 @@ namespace Ruledger
             {
                 landings.Add(new Landing(1.0, null) { To = Target(move) });
             }
+            else if (move.TryGetProperty("as", out JsonElement taken))
+            {
+                landings.Add(new Landing(1.0, null) { As = taken.GetString() });
+            }
 
-            string input = move.GetProperty("input").GetString() ?? string.Empty;
+            IReadOnlyList<KeyValuePair<string, string?>> at = ReadAt(move);
+            string input = move.TryGetProperty("input", out JsonElement named)
+                ? named.GetString() ?? string.Empty
+                : string.Join('.', at.Select(static key => key.Key));
             IReadOnlyDictionary<string, string> arguments = ReadArguments(move);
             IReadOnlyList<string>? open = move.TryGetProperty("open", out _) ? ReadNames(move, "open") : null;
 
             return new Move(
                 input,
                 arguments,
-                Move.Write(input, arguments, open),
+                Move.Write(input, arguments, open, at),
                 move.TryGetProperty("actor", out JsonElement actor) ? actor.GetString() : null,
                 string.Empty,
                 landings,
                 move.TryGetProperty("followed", out JsonElement followed) ? followed.GetDouble() : 1,
-                open);
+                open,
+                at);
         }
 
         private static string? Target(JsonElement node) =>

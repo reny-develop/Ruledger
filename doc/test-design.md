@@ -1,4 +1,4 @@
-# `ruledger/test-design/v4`
+# `ruledger/test-design/v5`
 
 Written for: someone reading or writing a test design by hand, or writing something that
 reads one.
@@ -19,7 +19,7 @@ means that, and `settings` holds that number.
 
 ```json
 {
-  "$schema": "ruledger/test-design/v4",
+  "$schema": "ruledger/test-design/v5",
   "ruleSet": "reversi@1.0.0",
   "settings": { "states": 3000, "candidates": 10000, "outcomes": 64 },
   "observed": ["board", "turn", "passes"],
@@ -32,14 +32,15 @@ means that, and `settings` holds that number.
 
 | key | |
 |---|---|
-| `$schema` | `ruledger/test-design/v4`, and a document without it is refused rather than guessed at. A `ruledger/test-design/v3` document is read as one that said nothing about projections; see below. A `ruledger/test-design/v2` document is read as a v3 one: v3 adds `start`, and a v2 document began where the rule set begins. A `ruledger/test-design/v1` document is read too: v2 adds a move that waits for a value, and a v1 document has none |
+| `$schema` | `ruledger/test-design/v5`, and a document without it is refused rather than guessed at. A `ruledger/test-design/v4` document is read as a v5 one whose rule set keeps no instances; v5 adds what one that does needs, below. A `ruledger/test-design/v3` document is read as one that said nothing about projections; see below. A `ruledger/test-design/v2` document is read as a v3 one: v3 adds `start`, and a v2 document began where the rule set begins. A `ruledger/test-design/v1` document is read too: v2 adds a move that waits for a value, and a v1 document has none |
 | `ruleSet` | what the rule set calls itself, as `id@version` |
 | `settings` | how the walk was told to go, each a count of the thing it limits: `states` to visit before stopping, `candidates` inputs to try in one state before giving up on finding more legal ones there, `outcomes` of one random draw to follow for an input. Recorded because none of it comes from the rule set, and two designs are only comparable when they agree. Each of the three leaves a mark where it bit: `"to": null`, `truncated`, `followed` |
-| `start` | the state the walk began in, as a `rulealize/state/v1` document, where it was handed one. Absent where it began in the rule set's own initial state; see below |
+| `start` | the state the walk began in, as a `rulealize/state/v1` document, where it was handed one — or, for a rule set that keeps instances, the documents of that position, as `documents` has them. Absent where it began in the rule set's own initial state; see below |
 | `observed` | the state paths two positions have to agree on to be the same position, in the order the rule set's `state.schema` declares them |
 | `collapsed` | the state paths left out of that comparison because nothing observable reads them, in the same order |
 | `admits` | what each parameter the rule set leaves open admits, by input and parameter: the op of its schema and the bounds beside it, as the runtime answered them. Absent where nothing is left open; see below |
 | `projections` | the names of the projections the rule set declares, in the order it declares them. Absent where it declares none; see below |
+| `keys` | what the keys of each collection written as a schema admit, by collection. Absent where there is none; see [Instances kept as documents of their own](#instances-kept-as-documents-of-their-own) |
 | `unreached` | how many landings the walk had no states left for: one per `"to": null` below |
 | `edits` | the choices a person made, and what became of each |
 | `states` | the states, in the order the walk first arrived at them |
@@ -87,6 +88,7 @@ figure and no number standing in for how much of a rule set a design covers.
 | `from` | the state this one was first reached from. Absent on `#0` |
 | `by` | the input that first reached it, written `place(at: e6)`. Absent on `#0` |
 | `state` | the position itself, as a `rulealize/state/v1` document |
+| `documents` | in place of `state`, for a rule set that keeps instances: every document of the position, by address; see [Instances kept as documents of their own](#instances-kept-as-documents-of-their-own) |
 | `evaluated` | how many candidates had their guard evaluated to find `moves`, and how many values were tried for a parameter left open |
 | `truncated` | present and `true` only when the search for legal inputs stopped at `candidates` |
 | `terminal` | present only when the rules call this state final. It holds `result`, which may be `null` |
@@ -150,11 +152,12 @@ not one per state.
 
 | key | |
 |---|---|
-| `input` | the name of the input |
+| `input` | the name of the input. Absent only on a move waiting for a key |
+| `at` | which instance it is at, one key per collection on the way down, as an input document's `at` has it. Absent at the rule set's own document |
 | `args` | what it was called with, by parameter name, each in the text form the runtime writes — a value for a parameter left open included. Absent when the input takes none |
 | `actor` | whose move it is. Absent where the rule set does not say |
 | `open` | the parameters it is still waiting for, in declared order. Present only on a move the walk had no value for; see below |
-| `to` / `lands` | where applying it goes, in one of the shapes below |
+| `to` / `lands` / `as` | where applying it goes, in one of the shapes below |
 | `followed` | how much of the draw `lands` is. Present only when `outcomes` cut it short; absent means all of it |
 
 A legal input is its name, its arguments and whose it is, which is why `actor` is here and
@@ -162,7 +165,7 @@ why a field only `actor` reads is still among the `observed`.
 
 ### Where it goes
 
-Four shapes, and they mean four different things; a fifth, a move waiting for a value, is
+Five shapes, and they mean five different things; a sixth, a move waiting for a value, is
 below with the parameter it waits for.
 
 | | |
@@ -170,7 +173,8 @@ below with the parameter it waits for.
 | `"to": "#7"` | applying it settles the next state, and that state is `#7` |
 | `"to": null` | the walk had no states left for it. **Not "it leads nowhere"** |
 | `"lands": [ ... ]` | the rules draw, so one input arrives in more than one place |
-| neither key | a move in a state the rules call final: offered, and not followed |
+| `"as": "#5"` | only for a rule set that keeps instances: the same step was followed from `#5`, so it is not followed again here. **Not "the walk ran out"**; see below |
+| none of these | a move in a state the rules call final: offered, and not followed |
 
 The last is the walk's decision and not the rule set's. What the rules still allow in a
 finished position is theirs to say, and leaving the moves out would make stopping look like
@@ -283,6 +287,86 @@ written against, and the only quantity it prints is `unreached`, which is a coun
 diff between two versions that followed different amounts of a draw says so by their branches
 differing, which is what moved the share in the first place.
 
+## Instances kept as documents of their own
+
+A rule set whose `uses` holds something `many` — a month holding any number of claims — keeps
+each instance as a document of its own, in a store its `requires` names. Its position is not one
+document, so a state says `documents` where it would say `state`:
+
+```json
+{
+  "name": "#3",
+  "from": "#2",
+  "by": "claims.enterAmount@1(amount: 2)",
+  "documents": [
+    { "at": "/",        "state": { "$schema": "rulealize/state/v1", "ruleSet": "claim-month@1.0.0", "data": { ... } } },
+    { "at": "claims/1", "state": { "$schema": "rulealize/state/v1", "ruleSet": "claim@1.0.0", "data": { ... } } }
+  ],
+  ...
+}
+```
+
+The rule set's own document is at `/` and first, even before anything has written it; then each
+instance at its address, nested ones under the instance holding them
+(`months/2026-10/claims/1`), in the order they were created, because that order is part of the
+position — a projection reads the instances in it. Two positions are the same position when
+the rule set's own document agrees on `observed`, and every instance is at the same address,
+in the same order, with the same document.
+
+The walk keeps the documents in memory, in place of the store the rule set names: evaluation is
+pure, so where they are kept changes no answer. A key the store assigns is `1`, `2`, … — one
+more than the collection holds — so it follows from the position and not from the route.
+
+**A move says where it is.** The runtime finds moves one place at a time, so they are asked of
+the rule set's own document and then of each instance, and a move at an instance carries the
+`at` it was found at and writes it after the name:
+
+```json
+{ "input": "submit", "at": { "claims": "1" }, "to": "#7" }
+```
+
+That move is `submit@1`, and nested keys go outermost first, `months.claims.enterAmount@2026-10/1(amount: 2)`.
+A refusal at an instance carries `at` the same way.
+
+**A step already followed is not followed again.** A month can always create another claim, so
+a walk that followed every move from every position would go on creating them for as long as it
+was allowed to and reach nothing else. It need not: a step reads the rule set's own document
+and the instances on the way to where it is, and nothing else — Rulealize refuses a guard that
+reads a document its transition does not write — so the same input from the same documents is
+legal or not, and writes what it writes, whatever other instances the position holds. A step
+already followed from those documents is written down as legal and not followed, with where it
+was:
+
+```json
+{ "input": "create", "as": "#0" }
+```
+
+That settles what the step decides, not what follows it. That nothing is lost is measured
+(`verify/Keeping.cs`): every position of up to four claims of `claim-month`, walked to the end
+breadth first straight through the runtime, takes 112 different steps — a month and a claim
+before, an input, a month and a claim after — and the walk takes all 112 in 66 states, and
+ends. What it does not write down is a position it did not visit: what a projection reading
+every instance would say about a month holding four drafts is not in the design, because no
+step needed that position.
+
+**A collection keyed by a schema has an instance at every key the schema admits.** Where the
+schema names its keys — an enumeration — every one is walked. Where it does not, the walk goes
+only to the keys a person wrote in a choice's `at`, and writes down in every position that it
+is waiting for one:
+
+```json
+{ "at": { "months": null }, "open": ["at.months"] }
+```
+
+That is `months@?`. It has no `input`, because what is offered at a month is not known until
+somebody says which month, and it is there so that a position with nothing else on offer is not
+read as a final one. What each such collection admits is written once at the top, as `admits` is
+for a parameter left open, so that a bound that moved shows somewhere:
+
+```json
+"keys": { "months": { "op": "type.string", "minLength": 7, "maxLength": 7 } }
+```
+
 ## An edit
 
 The one place a person writes.
@@ -295,6 +379,7 @@ The one place a person writes.
 |---|---|
 | `state` | the state to choose from, written either as how the walk arrives there — `#0 + submit` — or as the number that state has in the design being read |
 | `input` | the name of the input to take first |
+| `at` | which instance it is at, by alias, as a move's `at` has it. Absent at the rule set's own document. A key a collection keyed by a schema could not list is how a person says which instance to walk |
 | `args` | what to call it with. Absent when the input takes none. For a parameter left open, the value to follow it with |
 | `carried` | `yes`, `not legal here`, or `not reached`. Written by Ruledger; absent means `yes` |
 
@@ -370,7 +455,8 @@ observables, what was refused there, and the limit that can cut the first of the
 | a projection says something else | for a projection both versions declare; a fault that came or went is one |
 
 What an open parameter admits is compared as well, once per parameter rather than per state,
-where both designs record it; one that moved is a difference like any of these. So is a
+where both designs record it; one that moved is a difference like any of these. What the keys of
+a collection admit is compared the same way. So is a
 projection only one version declares, said once by name: a host reads a projection by its
 name, so a rename is a field one client stops getting and another starts to. A v3 design
 recorded no projections, and none of this is asked of it.

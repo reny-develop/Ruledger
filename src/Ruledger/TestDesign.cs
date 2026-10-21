@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Rulealize;
 using Rulealize.Abstraction;
+using Rulealize.Abstraction.Store;
 using Rulealize.Abstraction.Value;
 
 namespace Ruledger
@@ -39,7 +40,8 @@ namespace Ruledger
             IReadOnlyList<EditResult> edits,
             int unreached,
             IReadOnlyList<Admission>? admits = null,
-            IReadOnlyList<string>? projections = null)
+            IReadOnlyList<string>? projections = null,
+            IReadOnlyList<KeyAdmission>? keys = null)
         {
             RuleSet = ruleSet;
             Settings = settings;
@@ -51,6 +53,7 @@ namespace Ruledger
             Unreached = unreached;
             Admits = admits ?? [];
             Projections = projections;
+            Keys = keys ?? [];
         }
 
         /// <summary>Gets what the rule set calls itself, as <c>id@version</c>.</summary>
@@ -60,6 +63,12 @@ namespace Ruledger
         public WalkSettings Settings { get; }
 
         /// <summary>Gets the state the walk began in, as a <c>rulealize/state/v1</c> document, where it was given one.</summary>
+        /// <remarks>
+        /// For a rule set that keeps instances of another as documents of their own, the
+        /// position is several documents, and this is them as a JSON array of
+        /// <c>{ "at": "claims/1", "state": … }</c>, the rule set's own at <c>/</c> first and the
+        /// instances in the order they were created.
+        /// </remarks>
         /// <remarks>
         /// <para>
         /// Null where the walk began where the rule set itself begins. A rule set's initial
@@ -123,6 +132,15 @@ namespace Ruledger
         /// </para>
         /// </remarks>
         public IReadOnlyList<string>? Projections { get; }
+
+        /// <summary>Gets what the keys of each collection written as a schema admit, in the order the rule set declares the collections.</summary>
+        /// <remarks>
+        /// Once, for the reason <see cref="Admits"/> is. Such a collection has an instance at
+        /// every key its schema admits; the walk goes to every one where the schema names them,
+        /// and otherwise only to the keys a person wrote in a choice's <c>at</c>, so a bound that
+        /// moved would show nowhere else. Empty for a rule set that keeps no such collection.
+        /// </remarks>
+        public IReadOnlyList<KeyAdmission> Keys { get; }
 
         /// <summary>Gets how many landings there were no states left to visit.</summary>
         /// <remarks>
@@ -212,14 +230,65 @@ namespace Ruledger
             return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components), edits, start);
         }
 
+        /// <summary>Walks a rule set that keeps instances of another as documents of their own, and writes down what is observable along the way.</summary>
+        /// <param name="runtime">A runtime with the vocabularies the rule set draws on loaded, its store plugins among them.</param>
+        /// <param name="ruleSet">The rule set, as text.</param>
+        /// <param name="components">The document of every rule set reachable through <c>uses</c>, by identifier, or null where it holds none.</param>
+        /// <param name="starts">The state documents a <c>many</c> names as its <c>start</c>, by name, or null where none does.</param>
+        /// <param name="start">
+        /// The position to begin in, or null for the rule set's own initial state. For a rule set
+        /// that keeps instances, a JSON array of <c>{ "at": …, "state": … }</c> as
+        /// <see cref="TestDesignState.Documents"/> has them; otherwise a <c>rulealize/state/v1</c>
+        /// document.
+        /// </param>
+        /// <param name="settings">How far to go, or null for three thousand states.</param>
+        /// <param name="edits">Choices a person made, which the walk takes first where it can, or null for none.</param>
+        /// <returns>The test design.</returns>
+        /// <remarks>
+        /// <para>
+        /// A rule set whose <c>uses</c> holds something <c>many</c> keeps each instance as its own
+        /// document, in a store its <c>requires</c> names. The walk does not open that store:
+        /// evaluation is pure, so where the documents are kept changes no answer, and it gives the
+        /// runtime a <see cref="MemoryStateStore"/> in its place with
+        /// <see cref="RuleRuntime.UseStore(MemoryStateStore)"/>, which the runtime keeps for the
+        /// contexts created from it afterwards. The store plugins are still loaded, because the
+        /// rule set is built against them.
+        /// </para>
+        /// <para>
+        /// Moves are asked of the rule set's own document and of every instance in the position,
+        /// and written with the <c>at</c> they were found at. A collection whose keys are written
+        /// as a schema has an instance at every key it admits: where the schema names them all,
+        /// every one is walked, and otherwise only the keys a person wrote in a choice's
+        /// <c>at</c>, with a move in every state waiting for the rest. The machine does not make
+        /// up a key, as it does not make up a value.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="RuleSetBuildException">The text is not a rule set this runtime can compile.</exception>
+        /// <exception cref="RuleDocumentException">The start is not a position of this rule set.</exception>
+        /// <exception cref="InvalidOperationException">A rule set named in <c>uses</c> was not supplied.</exception>
+        public static TestDesign Derive(
+            RuleRuntime runtime,
+            string ruleSet,
+            IReadOnlyDictionary<string, string>? components,
+            IReadOnlyDictionary<string, string>? starts,
+            string? start,
+            WalkSettings? settings,
+            IReadOnlyList<TestDesignEdit>? edits)
+        {
+            ArgumentNullException.ThrowIfNull(runtime);
+            ArgumentNullException.ThrowIfNull(ruleSet);
+
+            return Derive(runtime, ruleSet, components, settings, ObservationScan.Of(ruleSet, components), edits, start, starts);
+        }
+
         /// <summary>Reads a test design back.</summary>
-        /// <param name="testDesign">A <c>ruledger/test-design/v4</c> document, or a v3, v2 or v1 one.</param>
+        /// <param name="testDesign">A <c>ruledger/test-design/v5</c> document, or a v4, v3, v2 or v1 one.</param>
         /// <returns>What it says.</returns>
         /// <exception cref="JsonException">The text is not JSON.</exception>
         /// <exception cref="InvalidOperationException">The text is not a test design.</exception>
         public static TestDesign FromJson(string testDesign) => TestDesignDocument.Read(testDesign);
 
-        /// <summary>Writes this test design as a <c>ruledger/test-design/v4</c> document.</summary>
+        /// <summary>Writes this test design as a <c>ruledger/test-design/v5</c> document.</summary>
         /// <returns>The document.</returns>
         /// <remarks>
         /// This is the test design — what a person reads against what they meant, what they put
@@ -235,14 +304,25 @@ namespace Ruledger
             WalkSettings? settings,
             ObservationScan observation,
             IReadOnlyList<TestDesignEdit>? edits = null,
-            string? start = null)
+            string? start = null,
+            IReadOnlyDictionary<string, string>? starts = null)
         {
+            // Only a rule set that keeps instances is given a store: one that keeps none is one
+            // document, and the runtime is left as the host gave it.
+            MemoryStateStore? store = null;
+            if (observation.Collections.Count > 0)
+            {
+                store = new MemoryStateStore();
+                runtime.UseStore(store);
+            }
+
             Walker walker = new(
-                runtime.CreateContext(ruleSet, components),
+                runtime.CreateContext(ruleSet, components, starts),
                 observation,
                 settings ?? new WalkSettings(),
                 start,
-                edits ?? []);
+                edits ?? [],
+                store);
 
             return walker.Walk();
         }
@@ -252,9 +332,14 @@ namespace Ruledger
             ObservationScan observation,
             WalkSettings settings,
             string? start,
-            IReadOnlyList<TestDesignEdit> edits)
+            IReadOnlyList<TestDesignEdit> edits,
+            MemoryStateStore? store)
         {
             private readonly Dictionary<string, string> seen = new(StringComparer.Ordinal);
+
+            // For a rule set that keeps instances, each step followed, by what it reads, and the
+            // state it was followed from. See Stepping.
+            private readonly Dictionary<string, string> stepped = new(StringComparer.Ordinal);
             private readonly List<Entry> order = [];
             private readonly Stack<Entry> descending = new();
             private readonly Dictionary<TestDesignEdit, EditResult> outcomes = [];
@@ -271,12 +356,16 @@ namespace Ruledger
                 // A start somebody wrote is put to the runtime before anything else reads it, so
                 // that one which is not a state of this rule set is refused in the runtime's
                 // words, naming the field that is wrong, rather than failing somewhere in here.
+                Position opening = store is null
+                    ? new Position(start ?? rules.InitialState, null)
+                    : Position.Of(start, rules.InitialState);
+
                 if (start is not null)
                 {
-                    rules.GetTerminalStatus(start);
+                    rules.GetTerminalStatus(opening.Root);
                 }
 
-                Arrive(start ?? rules.InitialState, null, null);
+                Arrive(opening, null, null);
 
                 // The recursion is written out because its depth is the depth of the walk, and
                 // only the count of states it may visit keeps that bounded: a rule set holding a
@@ -292,7 +381,7 @@ namespace Ruledger
                     }
 
                     Step step = entry.Ahead[entry.Next++];
-                    step.Landing.To = Arrive(step.State, entry.Name, step);
+                    step.Landing.To = Arrive(step.Position, entry.Name, step);
                 }
 
                 return new TestDesign(
@@ -308,7 +397,10 @@ namespace Ruledger
                             : new EditResult(edit, EditOutcome.NotReached))],
                     this.unreached,
                     this.admits,
-                    rules.Projections);
+                    rules.Projections,
+                    [.. observation.Collections
+                        .Where(static collection => collection.Key is not null)
+                        .Select(static collection => new KeyAdmission(collection.Name, JsonNode.Parse(collection.Key!)!.ToJsonString(Compact)))]);
             }
 
             // A composite keeps each component's state under its alias, and keeps it as a state
@@ -341,14 +433,21 @@ namespace Ruledger
 
             private static bool Matches(TestDesignEdit edit, Move move) =>
                 string.Equals(edit.Input, move.Input, StringComparison.Ordinal)
+                && SameAt(edit.At, move.At)
                 && edit.Arguments.Count == move.Arguments.Count
                 && edit.Arguments.All(argument =>
                     move.Arguments.TryGetValue(argument.Key, out string? value)
                     && string.Equals(value, argument.Value, StringComparison.Ordinal));
 
-            private string? Arrive(string state, string? from, Step? step)
+            private static bool SameAt(IReadOnlyList<KeyValuePair<string, string>> written, IReadOnlyList<KeyValuePair<string, string?>> found) =>
+                written.Count == found.Count
+                && written.Zip(found).All(static pair =>
+                    string.Equals(pair.First.Key, pair.Second.Key, StringComparison.Ordinal)
+                    && string.Equals(pair.First.Value, pair.Second.Value, StringComparison.Ordinal));
+
+            private string? Arrive(Position position, string? from, Step? step)
             {
-                string key = Key(state);
+                string key = Key(position);
                 if (this.seen.TryGetValue(key, out string? seenAs))
                 {
                     return seenAs;
@@ -373,48 +472,141 @@ namespace Ruledger
                     this.here.Append(" + ").Append(Route.Step(step.By, step.Landing.Draw));
                 }
 
-                Entry entry = new(name, from, step?.By, state) { Back = back };
+                Entry entry = new(name, from, step?.By, position) { Back = back };
                 this.order.Add(entry);
 
-                TerminalStatus terminal = rules.GetTerminalStatus(state);
+                TerminalStatus terminal = rules.GetTerminalStatus(position.Root);
                 entry.IsTerminal = terminal.IsTerminal;
                 entry.Result = terminal.Result;
 
                 foreach (string projection in rules.Projections)
                 {
-                    entry.Projections.Add(Project(projection, state));
+                    entry.Projections.Add(Project(projection, position));
                 }
 
-                ValidInputSet legal = rules.GetValidInputs(state, settings.Candidates);
-                entry.Evaluated = legal.Evaluated;
-                entry.Truncated = legal.Truncated;
-
+                List<ValidInput> offered = [];
                 List<List<Step>> onward = [];
-                foreach (ValidInput input in legal)
+                foreach (ValidInputSet legal in Offered(position, name, entry, onward))
                 {
-                    if (input.IsComplete)
-                    {
-                        Follow(entry, onward, state, terminal, input, Settled(input), input.ToString(), input.ToInputDocument(rules.RuleSet));
-                        continue;
-                    }
+                    entry.Evaluated += legal.Evaluated;
+                    entry.Truncated |= legal.Truncated;
+                    offered.AddRange(legal);
 
-                    Fill(entry, onward, name, state, terminal, input);
+                    foreach (ValidInput input in legal)
+                    {
+                        if (input.IsComplete)
+                        {
+                            Follow(entry, onward, position, terminal, input, Settled(input), Written(input), input.ToInputDocument(rules.RuleSet));
+                            continue;
+                        }
+
+                        Fill(entry, onward, name, position, terminal, input);
+                    }
                 }
 
-                entry.Ahead.AddRange(Ordered(name, entry.Moves, onward, legal));
+                entry.Ahead.AddRange(Ordered(name, entry.Moves, onward, offered));
                 this.descending.Push(entry);
                 return name;
+            }
+
+            // Where moves are asked. A rule set that keeps no instances is one document and is
+            // asked once. One that keeps them is asked at its own document and at every instance
+            // in the position, in the order they were created, because the runtime finds moves
+            // one place at a time; then at every key a collection written as a schema names, or
+            // a person wrote, that nothing has been written at yet. Where the schema does not
+            // name its keys, a move waiting for one is written down, so that a position with
+            // nothing else on offer is not taken for a final one.
+            private IEnumerable<ValidInputSet> Offered(Position position, string name, Entry entry, List<List<Step>> onward)
+            {
+                if (store is null)
+                {
+                    yield return rules.GetValidInputs(position.Root, settings.Candidates);
+                    yield break;
+                }
+
+                List<StateAddress> addresses = [StateAddress.Root, .. position.Documents!.Skip(1).Select(static document => document.Key)];
+                for (int at = 0; at < addresses.Count; at++)
+                {
+                    StateAddress holder = addresses[at];
+                    string[] aliases = [.. holder.Segments.Where((_, index) => index % 2 == 0)];
+
+                    foreach (ObservationScan.Collection collection in observation.Collections.Where(each =>
+                        each.Key is not null
+                        && each.Path.Count == aliases.Length + 1
+                        && each.Path.Take(aliases.Length).SequenceEqual(aliases, StringComparer.Ordinal)))
+                    {
+                        string alias = collection.Path[^1];
+                        IReadOnlyList<string>? every = collection.Keys();
+
+                        foreach (string key in every ?? Chosen(holder, alias, name))
+                        {
+                            StateAddress instance = holder.Child(alias, key);
+                            if (!addresses.Contains(instance))
+                            {
+                                addresses.Add(instance);
+                            }
+                        }
+
+                        if (every is null)
+                        {
+                            KeyValuePair<string, string?>[] waiting = [.. At(holder), KeyValuePair.Create(alias, (string?)null)];
+                            entry.Moves.Add(new Move(
+                                collection.Name,
+                                new Dictionary<string, string>(StringComparer.Ordinal),
+                                Move.Write(collection.Name, new Dictionary<string, string>(), null, waiting),
+                                null,
+                                string.Empty,
+                                [],
+                                open: ["at." + alias],
+                                at: waiting));
+                            onward.Add([]);
+                        }
+                    }
+                }
+
+                foreach (StateAddress address in addresses)
+                {
+                    store.Load(position.Documents!);
+                    yield return rules.GetValidInputsAsync(address, settings.Candidates).GetAwaiter().GetResult();
+                }
+            }
+
+            // The keys a person wrote for an instance of a collection the walk could not list,
+            // in the order the choices are written, from a choice made in this state.
+            private IEnumerable<string> Chosen(StateAddress holder, string alias, string name)
+            {
+                int depth = holder.Segments.Length / 2;
+                HashSet<string> named = new(StringComparer.Ordinal);
+
+                foreach (TestDesignEdit edit in edits.Where(edit => Names(edit, name)))
+                {
+                    if (edit.At.Count > depth
+                        && edit.At[depth].Key == alias
+                        && edit.At.Take(depth).Select(static key => key.Value).SequenceEqual(holder.Segments.Where((_, index) => index % 2 == 1), StringComparer.Ordinal)
+                        && named.Add(edit.At[depth].Value))
+                    {
+                        yield return edit.At[depth].Value;
+                    }
+                }
             }
 
             // Asked of every state and not only of the ones a host happens to show, and written
             // as the runtime answered: a fault is the answer where there is one, because a
             // projection moves nothing and the walk does not need it to go on.
-            private Projection Project(string projection, string state)
+            private Projection Project(string projection, Position position)
             {
                 string answer;
                 try
                 {
-                    answer = rules.Project(projection, state);
+                    if (store is null)
+                    {
+                        answer = rules.Project(projection, position.Root);
+                    }
+                    else
+                    {
+                        store.Load(position.Documents!);
+                        answer = rules.ProjectAsync(projection).GetAwaiter().GetResult();
+                    }
                 }
                 catch (RuleEvaluationException fault)
                 {
@@ -437,7 +629,7 @@ namespace Ruledger
             // choices, and writes the move down as legal and waiting for the rest. Guessing a
             // value would be the machine supplying judgement, which is the one thing it
             // refuses to do.
-            private void Fill(Entry entry, List<List<Step>> onward, string name, string state, TerminalStatus terminal, ValidInput input)
+            private void Fill(Entry entry, List<List<Step>> onward, string name, Position position, TerminalStatus terminal, ValidInput input)
             {
                 foreach (OpenParameter open in input.Open)
                 {
@@ -455,11 +647,12 @@ namespace Ruledger
                     entry.Moves.Add(new Move(
                         input.Input,
                         Settled(input),
-                        Move.Write(input.Input, Settled(input), waiting),
+                        Move.Write(input.Input, Settled(input), waiting, At(input.At)),
                         input.Actor,
                         string.Empty,
                         [],
-                        open: waiting));
+                        open: waiting,
+                        at: At(input.At)));
                     onward.Add([]);
                 }
 
@@ -482,27 +675,34 @@ namespace Ruledger
                     // the list of legal moves showing it.
                     try
                     {
-                        rules.GetOutcomes(document, state, 1);
+                        if (store is null)
+                        {
+                            rules.GetOutcomes(document, position.Root, 1);
+                        }
+                        else
+                        {
+                            Apply(position, document);
+                        }
                     }
                     catch (InputRejectedException rejected)
                     {
-                        entry.Refused.Add(new Refusal(input.Input, arguments, [.. rejected.Rejections.Select(static each => each.Code)]));
+                        entry.Refused.Add(new Refusal(input.Input, arguments, [.. rejected.Rejections.Select(static each => each.Code)], At(input.At)));
                         continue;
                     }
                     catch (IllegalInputException)
                     {
-                        entry.Refused.Add(new Refusal(input.Input, arguments, []));
+                        entry.Refused.Add(new Refusal(input.Input, arguments, [], At(input.At)));
                         continue;
                     }
 
-                    Follow(entry, onward, state, terminal, input, arguments, Move.Write(input.Input, arguments), document);
+                    Follow(entry, onward, position, terminal, input, arguments, Move.Write(input.Input, arguments, null, At(input.At)), document);
                 }
             }
 
             private void Follow(
                 Entry entry,
                 List<List<Step>> onward,
-                string state,
+                Position position,
                 TerminalStatus terminal,
                 ValidInput input,
                 Dictionary<string, string> arguments,
@@ -515,9 +715,27 @@ namespace Ruledger
 
                 // Past the end there is nothing to reach, so the moves a rule set still
                 // offers are written down and none of them is followed.
-                if (!terminal.IsTerminal)
+                if (!terminal.IsTerminal && store is not null)
                 {
-                    OutcomeSet outcomes = rules.GetOutcomes(document, state, settings.Outcomes);
+                    // Nothing a rule set that keeps instances does draws yet, so applying the
+                    // input settles where it goes.
+                    Landing landing = new(1, null);
+                    landings.Add(landing);
+
+                    string stepping = Stepping(position, text, input.At);
+                    if (this.stepped.TryGetValue(stepping, out string? followedAt))
+                    {
+                        landing.As = followedAt;
+                    }
+                    else
+                    {
+                        this.stepped[stepping] = entry.Name;
+                        ahead.Add(new Step(landing, Apply(position, document), text));
+                    }
+                }
+                else if (!terminal.IsTerminal)
+                {
+                    OutcomeSet outcomes = rules.GetOutcomes(document, position.Root, settings.Outcomes);
 
                     // How much of the draw these branches are. Kept because it is the one
                     // thing the branches themselves do not say: a distribution the limit
@@ -537,7 +755,7 @@ namespace Ruledger
                             outcome.Draws.IsEmpty ? null : outcome.ToOutcomeDocument(rules.RuleSet));
 
                         landings.Add(landing);
-                        ahead.Add(new Step(landing, outcome.Result.State, text));
+                        ahead.Add(new Step(landing, new Position(outcome.Result.State, null), text));
                     }
                 }
 
@@ -548,9 +766,55 @@ namespace Ruledger
                     input.Actor,
                     document,
                     landings,
-                    followed));
+                    followed,
+                    at: At(input.At)));
 
                 onward.Add(ahead);
+            }
+
+            // Where an input leads from a position kept in the store: the position put back,
+            // the input applied and committed, and what the store then holds read out. Keys are
+            // the store's, and a memory store's follow from the documents, so the same position
+            // and input give the same key whichever route the walk took there.
+            private Position Apply(Position position, string document)
+            {
+                store!.Load(position.Documents!);
+                rules.ApplyAsync(document).GetAwaiter().GetResult();
+                return Position.Read(store.Documents, rules.InitialState);
+            }
+
+            // What a step reads: its text, the rule set's own document as it is compared, and each
+            // instance on the way to where it is, whole.
+            //
+            // A rule set that keeps instances can always create another, so a walk that follows
+            // every move from every position goes on creating them and reaches nothing else. It
+            // need not: Rulealize refuses a guard that reads a document its transition does not
+            // write, so whether a step is legal and what it writes turn on these documents and no
+            // others, and a step already followed from the same ones decides nothing new. It is
+            // still written down as legal, with `as` naming where it was followed.
+            //
+            // That settles what the step decides, not what follows it, and verify/Keeping.cs is
+            // the measurement that nothing is lost: every step a few claims can take, walked to the
+            // end without this, is among the steps this walk takes.
+            private string Stepping(Position position, string text, StateAddress at)
+            {
+                StringBuilder key = new(text);
+                key.Append('|').Append(Key(position.Root));
+
+                StateAddress on = StateAddress.Root;
+                for (int segment = 0; segment + 1 < at.Segments.Length; segment += 2)
+                {
+                    on = on.Child(at.Segments[segment], at.Segments[segment + 1]);
+                    string? state = position.Documents!.FirstOrDefault(document => document.Key.Equals(on)).Value;
+                    key.Append('|').Append(on).Append('=');
+                    if (state is not null)
+                    {
+                        using JsonDocument document = JsonDocument.Parse(state);
+                        Canonical.Write(document.RootElement.GetProperty("data"), key);
+                    }
+                }
+
+                return key.ToString();
             }
 
             // Every value each open parameter's schema admits, and every way of putting them
@@ -621,8 +885,9 @@ namespace Ruledger
             {
                 Dictionary<string, string> settled = Settled(input);
                 HashSet<string> named = new(StringComparer.Ordinal);
+                IReadOnlyList<KeyValuePair<string, string?>> at = At(input.At);
 
-                foreach (TestDesignEdit edit in edits.Where(edit => edit.Input == input.Input && Names(edit, name)))
+                foreach (TestDesignEdit edit in edits.Where(edit => edit.Input == input.Input && SameAt(edit.At, at) && Names(edit, name)))
                 {
                     if (!input.Open.All(open => edit.Arguments.ContainsKey(open.Name))
                         || !settled.All(argument => edit.Arguments.TryGetValue(argument.Key, out string? value) && value == argument.Value))
@@ -641,6 +906,18 @@ namespace Ruledger
                     }
                 }
             }
+
+            // A move the walk found complete, written as the runtime writes it, with where it is
+            // put after the name where it is at an instance.
+            private static string Written(ValidInput input) =>
+                input.At.IsRoot ? input.ToString() : Move.Write(input.Input, Settled(input), null, At(input.At));
+
+            // An address as a move's `at` has it: each collection on the way down and its key.
+            private static IReadOnlyList<KeyValuePair<string, string?>> At(StateAddress address) =>
+            [
+                .. Enumerable.Range(0, address.Segments.Length / 2)
+                    .Select(index => KeyValuePair.Create(address.Segments[2 * index], (string?)address.Segments[(2 * index) + 1])),
+            ];
 
             // What a person wrote is text, and "2" is not 2: the schema's op says which it is.
             private static JsonNode? Parse(OpenParameter open, string text) => open.Op switch
@@ -681,7 +958,7 @@ namespace Ruledger
             // a written value by what it is, and whether it was carried is asked of the same
             // thing. The schema's op is what says "3.0" is a number at all, so an argument the
             // rule set settled itself is left as it was written.
-            private static TestDesignEdit Spelled(TestDesignEdit edit, ValidInputSet legal)
+            private static TestDesignEdit Spelled(TestDesignEdit edit, IReadOnlyList<ValidInput> legal)
             {
                 Dictionary<string, string> arguments = new(StringComparer.Ordinal);
                 foreach ((string parameter, string text) in edit.Arguments)
@@ -694,7 +971,7 @@ namespace Ruledger
                     arguments[parameter] = open is null ? text : Text(Parse(open, text));
                 }
 
-                return new TestDesignEdit(edit.State, edit.Input, arguments);
+                return new TestDesignEdit(edit.State, edit.Input, edit.At, arguments);
             }
 
             private static Dictionary<string, string> Settled(ValidInput input) =>
@@ -703,7 +980,7 @@ namespace Ruledger
             // The one place a person's writing reaches. Which inputs are legal here is an
             // observation and keeps the order the runtime offered them in; which one the walk
             // goes down first is a choice, and that is what an edit replaces.
-            private IEnumerable<Step> Ordered(string name, List<Move> moves, List<List<Step>> onward, ValidInputSet legal)
+            private IEnumerable<Step> Ordered(string name, List<Move> moves, List<List<Step>> onward, IReadOnlyList<ValidInput> legal)
             {
                 List<int> taken = [];
                 foreach (TestDesignEdit written in edits.Where(edit => Names(edit, name)))
@@ -742,6 +1019,31 @@ namespace Ruledger
             // depend on. Anything else a rule set keeps — an audit trail, a move history — is
             // dropped here, or a walk through a rule set that keeps one would never return to a
             // position it had already been in.
+            //
+            // An instance kept as a document of its own is compared whole, and where it is and
+            // in what order it was created are part of the position. Keeping too much costs
+            // only how often the walk rejoins.
+            private string Key(Position position)
+            {
+                string own = Key(position.Root);
+                if (position.Documents is null)
+                {
+                    return own;
+                }
+
+                StringBuilder key = new(own);
+                foreach ((StateAddress address, string state) in position.Documents.Skip(1))
+                {
+                    using JsonDocument document = JsonDocument.Parse(state);
+                    key.Append('|').Append(address).Append('=');
+                    Canonical.Write(
+                        document.RootElement.TryGetProperty("data", out JsonElement data) ? data : document.RootElement,
+                        key);
+                }
+
+                return key.ToString();
+            }
+
             private string Key(string state)
             {
                 using JsonDocument document = JsonDocument.Parse(state);
@@ -765,9 +1067,9 @@ namespace Ruledger
                 return key.ToString();
             }
 
-            private sealed record Step(Landing Landing, string State, string By);
+            private sealed record Step(Landing Landing, Position Position, string By);
 
-            private sealed class Entry(string name, string? from, string? by, string state)
+            private sealed class Entry(string name, string? from, string? by, Position position)
             {
                 public string Name => name;
 
@@ -793,7 +1095,66 @@ namespace Ruledger
                 public List<Projection> Projections { get; } = [];
 
                 public TestDesignState Close() =>
-                    new(name, from, by, state, IsTerminal, Result, Evaluated, Truncated, Moves, Refused, Projections);
+                    new(name, from, by, position.Root, IsTerminal, Result, Evaluated, Truncated, Moves, Refused, Projections,
+                        position.Documents?.Select(static document => KeyValuePair.Create(document.Key.ToString(), document.Value)).ToList());
+            }
+        }
+
+        /// <summary>A position: the rule set's own document, and every instance it keeps where it keeps any.</summary>
+        /// <param name="Root">The rule set's own document.</param>
+        /// <param name="Documents">
+        /// Every document of the position, the rule set's own first and the instances in the
+        /// order they were created, or null for a rule set that keeps none.
+        /// </param>
+        internal sealed record Position(string Root, IReadOnlyList<KeyValuePair<StateAddress, string>>? Documents)
+        {
+            /// <summary>Reads what a store holds, putting the rule set's own document first where nothing has written it yet.</summary>
+            public static Position Read(IReadOnlyList<KeyValuePair<StateAddress, string>> kept, string initial)
+            {
+                string root = kept.FirstOrDefault(static document => document.Key.IsRoot).Value ?? initial;
+                return new Position(root, [KeyValuePair.Create(StateAddress.Root, root), .. kept.Where(static document => !document.Key.IsRoot)]);
+            }
+
+            /// <summary>Reads a start written as a JSON array of <c>{ "at": …, "state": … }</c>, or begins in the initial state.</summary>
+            /// <exception cref="RuleDocumentException">The start is not a list of documents by address.</exception>
+            public static Position Of(string? start, string initial)
+            {
+                if (start is null)
+                {
+                    return Read([], initial);
+                }
+
+                using JsonDocument written = JsonDocument.Parse(start);
+                if (written.RootElement.ValueKind != JsonValueKind.Array)
+                {
+                    throw new RuleDocumentException(
+                        "This rule set keeps instances as documents of their own, so a position is several documents: "
+                        + "a start is a JSON array of { \"at\": ..., \"state\": ... }, the rule set's own at \"/\".");
+                }
+
+                return Read(
+                    [.. written.RootElement.EnumerateArray().Select(static document => KeyValuePair.Create(
+                        Address(document.GetProperty("at").GetString() ?? "/"),
+                        document.GetProperty("state").GetRawText()))],
+                    initial);
+            }
+
+            /// <summary>Reads an address as <see cref="StateAddress.ToString"/> writes it: <c>/</c>, or <c>months/2026-10/claims/1</c>.</summary>
+            public static StateAddress Address(string written)
+            {
+                StateAddress address = StateAddress.Root;
+                if (written == "/")
+                {
+                    return address;
+                }
+
+                string[] segments = written.Split('/');
+                for (int at = 0; at + 1 < segments.Length; at += 2)
+                {
+                    address = address.Child(segments[at], segments[at + 1]);
+                }
+
+                return address;
             }
         }
     }

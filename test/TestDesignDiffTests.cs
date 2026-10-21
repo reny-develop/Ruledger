@@ -88,7 +88,7 @@ namespace Ruledger.Tests
         {
             string v3 = TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read("tally"), new WalkSettings(States: 3000))
                 .ToJson()
-                .Replace("ruledger/test-design/v4", "ruledger/test-design/v3", StringComparison.Ordinal);
+                .Replace("ruledger/test-design/v5", "ruledger/test-design/v3", StringComparison.Ordinal);
 
             TestDesignDiff diff = TestDesignDiff.Of(Vocabulary.Runtime, v3, Vocabulary.Read("tally-renamed"));
 

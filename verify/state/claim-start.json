@@ -1,0 +1,6 @@
+{
+  "$schema": "rulealize/state/v1",
+  "ruleSet": "claim@1.0.0",
+
+  "data": { "stage": "draft", "amount": 0, "approver": "bo" }
+}

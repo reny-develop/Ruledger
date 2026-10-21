@@ -36,7 +36,7 @@ namespace Ruledger.Tests
         {
             JsonElement design = Parse(Derive("approval").ToJson());
 
-            Assert.Equal("ruledger/test-design/v4", design.GetProperty("$schema").GetString());
+            Assert.Equal("ruledger/test-design/v5", design.GetProperty("$schema").GetString());
             Assert.Equal("approval@1.0.0", design.GetProperty("ruleSet").GetString());
             Assert.Equal(300, design.GetProperty("settings").GetProperty("states").GetInt32());
             Assert.Equal(["stage"], design.GetProperty("observed").EnumerateArray().Select(field => field.GetString()));
@@ -191,7 +191,7 @@ namespace Ruledger.Tests
         public void AV3DesignIsReadAsOneThatDidNotRecordProjections()
         {
             string v3 = Derive("approval").ToJson()
-                .Replace("ruledger/test-design/v4", "ruledger/test-design/v3", StringComparison.Ordinal);
+                .Replace("ruledger/test-design/v5", "ruledger/test-design/v3", StringComparison.Ordinal);
 
             Assert.Null(TestDesign.FromJson(v3).Projections);
         }

@@ -28,7 +28,8 @@ namespace Ruledger
             bool truncated,
             IReadOnlyList<Move> moves,
             IReadOnlyList<Refusal>? refused = null,
-            IReadOnlyList<Projection>? projections = null)
+            IReadOnlyList<Projection>? projections = null,
+            IReadOnlyList<KeyValuePair<string, string>>? documents = null)
         {
             Name = name;
             From = from;
@@ -41,6 +42,8 @@ namespace Ruledger
             Moves = moves;
             Refused = refused ?? [];
             Projections = projections ?? [];
+            Documents = documents ?? [KeyValuePair.Create("/", state)];
+            KeepsInstances = documents is not null;
         }
 
         /// <summary>Gets what this state is called, which is its position in the walk.</summary>
@@ -62,12 +65,33 @@ namespace Ruledger
         /// <summary>Gets the input that first reached it, written as <c>place(at: c4)</c>, or null for the opening position.</summary>
         public string? By { get; }
 
-        /// <summary>Gets the position itself, as a <c>rulealize/state/v1</c> document.</summary>
+        /// <summary>Gets the rule set's own document in this position, as a <c>rulealize/state/v1</c> document.</summary>
         /// <remarks>
         /// Carried so that a person running this by hand has somewhere to start, and so that
-        /// what was walked can be applied again without walking to it.
+        /// what was walked can be applied again without walking to it. For a rule set that
+        /// keeps instances of another as documents of their own, this is the holder's document
+        /// and the position is all of <see cref="Documents"/>.
         /// </remarks>
         public string State { get; }
+
+        /// <summary>Gets every document the position is, by address: <c>/</c> first, then each instance in the order it was created.</summary>
+        /// <remarks>
+        /// <para>
+        /// A rule set whose <c>uses</c> holds something <c>many</c> keeps each instance as its
+        /// own document, so its position is not one document: it is its own, at <c>/</c>, and
+        /// one per instance at an address such as <c>claims/1</c> or
+        /// <c>months/2026-10/claims/1</c>. The order the instances were created in is part of
+        /// the position, because a projection reads them in that order.
+        /// </para>
+        /// <para>
+        /// For any other rule set this is <see cref="State"/> alone, at <c>/</c>.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyList<KeyValuePair<string, string>> Documents { get; }
+
+        // Whether the position is several documents, which is what the rule set says and not
+        // how many there are: a ledger with no instance yet is still kept that way.
+        internal bool KeepsInstances { get; }
 
         /// <summary>Gets a value indicating whether the rules call this state final.</summary>
         public bool IsTerminal { get; }
@@ -131,9 +155,11 @@ namespace Ruledger
             string document,
             IReadOnlyList<Landing> landings,
             double followed = 1,
-            IReadOnlyList<string>? open = null)
+            IReadOnlyList<string>? open = null,
+            IReadOnlyList<KeyValuePair<string, string?>>? at = null)
         {
             Input = input;
+            At = at ?? [];
             Arguments = arguments;
             Text = text;
             Actor = actor;
@@ -146,10 +172,20 @@ namespace Ruledger
         /// <summary>Gets the name of the input.</summary>
         public string Input { get; }
 
+        /// <summary>Gets which instance it is at, one key per collection on the way down, or none for a move at the rule set's own document.</summary>
+        /// <remarks>
+        /// As an input document's <c>at</c> has it, by alias. A key is null on a move waiting
+        /// for one: a collection whose keys are written as a schema has an instance at every key
+        /// it admits, and where the schema does not name them and no person wrote one, the walk
+        /// has no key to ask about and does not make one up. Such a move's <see cref="Open"/>
+        /// is <c>at.</c> and the alias.
+        /// </remarks>
+        public IReadOnlyList<KeyValuePair<string, string?>> At { get; }
+
         /// <summary>Gets what it was called with, by parameter name, each in the text form the runtime writes.</summary>
         public IReadOnlyDictionary<string, string> Arguments { get; }
 
-        /// <summary>Gets the input and its arguments, written as <c>place(at: c4)</c>.</summary>
+        /// <summary>Gets the input and its arguments, written as <c>place(at: c4)</c>, and <c>submit@1(by: ann)</c> at an instance.</summary>
         public string Text { get; }
 
         /// <summary>Gets whose move this is, or null where the rule set does not say.</summary>
@@ -191,16 +227,28 @@ namespace Ruledger
         /// <inheritdoc />
         public override string ToString() => Text;
 
-        /// <summary>Writes a move the way <see cref="Text"/> has it: <c>place(at: c4)</c>, and <c>setName(to: ?)</c> for one still waiting.</summary>
-        internal static string Write(string input, IReadOnlyDictionary<string, string> arguments, IReadOnlyList<string>? open = null)
+        /// <summary>Writes a move the way <see cref="Text"/> has it: <c>place(at: c4)</c>, <c>setName(to: ?)</c> for one still waiting, and <c>submit@1(by: ann)</c> at an instance.</summary>
+        /// <remarks>
+        /// The keys go after an <c>@</c>, outermost first and joined by <c>/</c>, and a key the
+        /// move is waiting for is <c>?</c>: <c>months@?</c>. No input's name has an <c>@</c> in it.
+        /// </remarks>
+        internal static string Write(
+            string input,
+            IReadOnlyDictionary<string, string> arguments,
+            IReadOnlyList<string>? open = null,
+            IReadOnlyList<KeyValuePair<string, string?>>? at = null)
         {
             string[] parts =
             [
                 .. arguments.Select(static argument => $"{argument.Key}: {argument.Value}"),
-                .. (open ?? []).Select(static name => $"{name}: ?"),
+                .. (open ?? []).Where(static name => !name.StartsWith("at.", StringComparison.Ordinal)).Select(static name => $"{name}: ?"),
             ];
 
-            return parts.Length == 0 ? input : $"{input}({string.Join(", ", parts)})";
+            string head = at is { Count: > 0 }
+                ? $"{input}@{string.Join('/', at.Select(static key => key.Value ?? "?"))}"
+                : input;
+
+            return parts.Length == 0 ? head : $"{head}({string.Join(", ", parts)})";
         }
     }
 
@@ -239,22 +287,48 @@ namespace Ruledger
         /// </remarks>
         public string? To { get; internal set; }
 
+        /// <summary>Gets the name of the state the same step was followed from, where it was not followed here.</summary>
+        /// <remarks>
+        /// <para>
+        /// Only in a rule set that keeps instances of another as documents of their own. A step
+        /// reads the rule set's own document and the instances on the way to where it is, and
+        /// nothing else — Rulealize refuses a guard that reads a document its transition does
+        /// not write — so the same input from the same documents is legal or not, and writes
+        /// what it writes, whichever other instances the position holds. One already followed
+        /// from the state named here is not followed again, or a rule set that can always
+        /// create another instance would be walked creating them and nothing else.
+        /// </para>
+        /// <para>
+        /// Not <see cref="To"/>, and not a place the walk ran out of states before: where this
+        /// position would have led is a position the walk decided it need not visit.
+        /// </para>
+        /// </remarks>
+        public string? As { get; internal set; }
+
         /// <inheritdoc />
-        public override string ToString() => To ?? "(not reached)";
+        public override string ToString() => To ?? (As is null ? "(not reached)" : $"(as from {As})");
     }
 
     /// <summary>A value for a parameter left open that was tried in a state and refused.</summary>
     public sealed class Refusal
     {
-        internal Refusal(string input, IReadOnlyDictionary<string, string> arguments, IReadOnlyList<string> codes)
+        internal Refusal(
+            string input,
+            IReadOnlyDictionary<string, string> arguments,
+            IReadOnlyList<string> codes,
+            IReadOnlyList<KeyValuePair<string, string?>>? at = null)
         {
             Input = input;
             Arguments = arguments;
             Codes = codes;
+            At = at ?? [];
         }
 
         /// <summary>Gets the name of the input.</summary>
         public string Input { get; }
+
+        /// <summary>Gets which instance it was tried at, as <see cref="Move.At"/> has it, or none.</summary>
+        public IReadOnlyList<KeyValuePair<string, string?>> At { get; }
 
         /// <summary>Gets what it was tried with, by parameter name, in the text form the runtime writes.</summary>
         public IReadOnlyDictionary<string, string> Arguments { get; }
@@ -263,7 +337,7 @@ namespace Ruledger
         public IReadOnlyList<string> Codes { get; }
 
         /// <summary>Gets the input and its arguments, written as <see cref="Move.Text"/> would write them.</summary>
-        public string Text => Move.Write(Input, Arguments);
+        public string Text => Move.Write(Input, Arguments, null, At);
 
         /// <inheritdoc />
         public override string ToString() =>
@@ -304,6 +378,21 @@ namespace Ruledger
 
         /// <inheritdoc />
         public override string ToString() => Fault is null ? $"{Name} = {Value}" : $"{Name} faulted: {Fault}";
+    }
+
+    /// <summary>What the keys of a collection written as a schema may be.</summary>
+    /// <param name="Collection">The collection, as the aliases on the way down to it joined by <c>.</c>: <c>months</c>.</param>
+    /// <param name="Schema">The schema its keys are written with, as the rule set writes it, as one JSON object.</param>
+    /// <remarks>
+    /// The key of an instance is what a person may have to supply, as a value for a parameter
+    /// left open is, so what it admits is written once for the reason <see cref="Admission"/> is:
+    /// where the walk could not try every key, nothing else in a test design would show a
+    /// bound that moved.
+    /// </remarks>
+    public sealed record KeyAdmission(string Collection, string Schema)
+    {
+        /// <inheritdoc />
+        public override string ToString() => $"{Collection} keys admit {Schema}";
     }
 
     /// <summary>What a parameter the rule set leaves open admits, as the runtime answered it.</summary>
