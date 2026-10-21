@@ -310,7 +310,7 @@ namespace Ruledger
             // Only a rule set that keeps instances is given a store: one that keeps none is one
             // document, and the runtime is left as the host gave it.
             MemoryStateStore? store = null;
-            if (observation.Collections.Count > 0)
+            if (observation.Kept.Count > 0)
             {
                 store = new MemoryStateStore();
                 runtime.UseStore(store);
@@ -398,7 +398,7 @@ namespace Ruledger
                     this.unreached,
                     this.admits,
                     rules.Projections,
-                    [.. observation.Collections
+                    [.. observation.Kept
                         .Where(static collection => collection.Key is not null)
                         .Select(static collection => new KeyAdmission(collection.Name, JsonNode.Parse(collection.Key!)!.ToJsonString(Compact)))]);
             }
@@ -530,7 +530,7 @@ namespace Ruledger
                     StateAddress holder = addresses[at];
                     string[] aliases = [.. holder.Segments.Where((_, index) => index % 2 == 0)];
 
-                    foreach (ObservationScan.Collection collection in observation.Collections.Where(each =>
+                    foreach (ObservationScan.Collection collection in observation.Kept.Where(each =>
                         each.Key is not null
                         && each.Path.Count == aliases.Length + 1
                         && each.Path.Take(aliases.Length).SequenceEqual(aliases, StringComparer.Ordinal)))
