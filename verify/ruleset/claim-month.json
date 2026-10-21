@@ -1,0 +1,102 @@
+{
+  // A month: any number of claims, each a document of its own, and how much of its limit they
+  // have used. Its instances are kept by the store it names, `Ruledger.Fixture.Store`, a plugin
+  // that declares a store nobody opens: the walk keeps the documents in memory in its place,
+  // which is what this is here to show.
+  //
+  // Submitting and rejecting go through the month, because they move `used`; the claim's own
+  // are closed to anything else. `consistent` is the month saying whether `used` is what its
+  // claims say it is, and the walk writes that down for every position it reaches.
+  //
+  // A new claim begins in `claim-start`, `verify/state/claim-start.json`, where who approves is
+  // said once and in no rule set.
+  "id": "claim-month",
+  "version": "1.0.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Definition" }, { "plugin": "Rulealize.Plugin.Sequence" },
+    { "plugin": "Rulealize.Plugin.Comparison" }, { "plugin": "Rulealize.Plugin.Branch" },
+    { "plugin": "Rulealize.Plugin.Record" },     { "plugin": "Rulealize.Plugin.Arithmetic" },
+    { "plugin": "Rulealize.Plugin.Binding" },
+    { "plugin": "Ruledger.Fixture.Store" }
+  ],
+
+  "uses": [
+    { "ruleSet": "claim", "version": "^1.0", "as": "claims",
+      "many": { "key": "generated", "start": "claim-start" } }
+  ],
+
+  "state": {
+    "schema": {
+      "limit": { "op": "type.int", "min": 0, "max": 4 },
+      "used":  { "op": "type.int", "min": 0, "max": 4 }
+    },
+    "initial": { "limit": 4, "used": 0 }
+  },
+
+  "definitions": {
+    "amountOf": {
+      "params": ["claim"],
+      "body": { "op": "rec.at", "key": "amount", "record": { "op": "rec.at", "record": "@claim", "key": "state" } }
+    },
+    "stageOf": {
+      "params": ["claim"],
+      "body": { "op": "rec.at", "key": "stage", "record": { "op": "rec.at", "record": "@claim", "key": "state" } }
+    }
+  },
+
+  "held": {
+    "claims": {
+      "submit": { "when": false },
+      "reject": { "when": false }
+    }
+  },
+
+  "inputs": {
+    "create": { "creates": "claims" },
+    "submit": {
+      "at": "claims",
+      "when": {
+        "op": "cmp.lte",
+        "left": { "op": "math.add", "of": ["$used", { "op": "def.call", "def": "amountOf", "args": { "claim": "@claims" } }] },
+        "right": "$limit"
+      },
+      "fires": [ { "held": "claims", "input": "submit" } ],
+      "effects": [
+        { "op": "state.set", "path": "used",
+          "value": { "op": "math.add", "of": ["$used", { "op": "def.call", "def": "amountOf", "args": { "claim": "@claims" } }] } }
+      ]
+    },
+    "reject": {
+      "at": "claims",
+      "params": { "by": { "domain": { "op": "seq.of", "of": ["ann", "bo"] } } },
+      "fires": [ { "held": "claims", "input": "reject", "args": { "by": "@by" } } ],
+      "effects": [
+        { "op": "state.set", "path": "used",
+          "value": { "op": "math.sub", "left": "$used", "right": { "op": "def.call", "def": "amountOf", "args": { "claim": "@claims" } } } }
+      ]
+    }
+  },
+
+  "projections": {
+    "left": { "op": "math.sub", "left": "$limit", "right": "$used" },
+    "consistent": {
+      "op": "cmp.eq", "left": "$used",
+      "right": {
+        "op": "seq.sum", "source": "$claims", "as": "c",
+        "select": {
+          "op": "branch.if",
+          "cond": { "op": "cmp.ne", "left": { "op": "def.call", "def": "stageOf", "args": { "claim": "@c" } }, "right": "draft" },
+          "then": {
+            "op": "branch.if",
+            "cond": { "op": "cmp.ne", "left": { "op": "def.call", "def": "stageOf", "args": { "claim": "@c" } }, "right": "denied" },
+            "then": { "op": "def.call", "def": "amountOf", "args": { "claim": "@c" } },
+            "else": 0
+          },
+          "else": 0
+        }
+      }
+    }
+  }
+}

@@ -32,12 +32,32 @@ namespace Ruledger
         /// <param name="input">The name of the input to take first.</param>
         /// <param name="arguments">What to call it with, by parameter name. An input without parameters takes none.</param>
         public TestDesignEdit(string state, string input, IReadOnlyDictionary<string, string>? arguments = null)
+            : this(state, input, null, arguments)
+        {
+        }
+
+        /// <summary>Initializes a new instance of the <see cref="TestDesignEdit"/> class, for an input at an instance.</summary>
+        /// <param name="state">The name of the state to choose from, either way of writing it.</param>
+        /// <param name="input">The name of the input to take first.</param>
+        /// <param name="at">
+        /// Which instance it is at, one key per collection on the way down, by alias, as an
+        /// input document's <c>at</c> has it; null or empty for the rule set's own document. A
+        /// key of a collection written as a schema that the walk could not name is how a person
+        /// says which instance to look at: the walk goes to every key a choice names.
+        /// </param>
+        /// <param name="arguments">What to call it with, by parameter name. An input without parameters takes none.</param>
+        public TestDesignEdit(
+            string state,
+            string input,
+            IReadOnlyList<KeyValuePair<string, string>>? at,
+            IReadOnlyDictionary<string, string>? arguments = null)
         {
             ArgumentNullException.ThrowIfNull(state);
             ArgumentNullException.ThrowIfNull(input);
 
             State = state;
             Input = input;
+            At = at ?? [];
             Arguments = arguments ?? new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
@@ -47,14 +67,15 @@ namespace Ruledger
         /// <summary>Gets the name of the input to take first.</summary>
         public string Input { get; }
 
+        /// <summary>Gets which instance it is at, one key per collection on the way down, or none.</summary>
+        public IReadOnlyList<KeyValuePair<string, string>> At { get; }
+
         /// <summary>Gets what to call it with, by parameter name.</summary>
         public IReadOnlyDictionary<string, string> Arguments { get; }
 
         /// <inheritdoc />
         public override string ToString() =>
-            Arguments.Count == 0
-                ? $"{State}: {Input}"
-                : $"{State}: {Input}({string.Join(", ", Arguments.Select(static argument => $"{argument.Key}: {argument.Value}"))})";
+            $"{State}: {Move.Write(Input, Arguments, null, [.. At.Select(static key => KeyValuePair.Create(key.Key, (string?)key.Value))])}";
     }
 
     /// <summary>What became of an edit when the test design was derived again.</summary>

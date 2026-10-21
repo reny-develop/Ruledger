@@ -47,6 +47,7 @@ namespace Ruledger
         private readonly Dictionary<string, JsonElement> definitions = new(StringComparer.Ordinal);
         private readonly HashSet<string> reached = new(StringComparer.Ordinal);
         private readonly HashSet<string> held = new(StringComparer.Ordinal);
+        private readonly List<Collection> collections = [];
 
         private ObservationScan(JsonElement root, IReadOnlyDictionary<string, string>? components, bool whole = false, bool component = false)
         {
@@ -82,6 +83,12 @@ namespace Ruledger
         // record: a held rule set's field is reached through that document's `data`. Nested,
         // so a component that holds others contributes its own with its alias in front.
         internal IReadOnlySet<string> Held => this.held;
+
+        // What a rule set keeps as documents of their own, at any depth, in the order the
+        // `uses` declare them with each one's own collections after it. None of their fields is
+        // a field of the holder's state, so none of them is among Observed or Collapsed; an
+        // instance's document is compared whole.
+        internal IReadOnlyList<Collection> Collections => this.collections;
 
         /// <summary>Gets the state fields nothing observable depends on, in the order the schema declares them.</summary>
         /// <remarks>
@@ -278,6 +285,19 @@ namespace Ruledger
 
                 using JsonDocument parsed = JsonDocument.Parse(document, ReaderOptions);
                 ObservationScan component = new(parsed.RootElement, components, component: true);
+
+                // Held `many`, the component's instances are documents of their own and not
+                // fields of this one, so only where they are is recorded.
+                if (use.TryGetProperty("many", out JsonElement many) && many.ValueKind == JsonValueKind.Object)
+                {
+                    string? key = many.TryGetProperty("key", out JsonElement written) && written.ValueKind == JsonValueKind.Object
+                        ? written.GetRawText()
+                        : null;
+
+                    this.collections.Add(new Collection([alias], key));
+                    this.collections.AddRange(component.Collections.Select(inner => inner with { Path = [alias, .. inner.Path] }));
+                    continue;
+                }
                 List<string> held = [.. component.Declared.Select(field => alias + "." + field)];
 
                 this.aliases[alias] = held;
@@ -541,6 +561,37 @@ namespace Ruledger
             if (this.declared.Contains(head))
             {
                 into.Add(head);
+            }
+        }
+
+        /// <summary>One collection a rule set keeps, at whatever depth.</summary>
+        /// <param name="Path">The aliases on the way down to it, outermost first.</param>
+        /// <param name="Key">The schema its keys are written with, as JSON, or null where the store assigns them.</param>
+        internal sealed record Collection(IReadOnlyList<string> Path, string? Key)
+        {
+            /// <summary>Gets the aliases on the way down, joined as an input's name joins them.</summary>
+            public string Name => string.Join('.', Path);
+
+            /// <summary>Gets every key the schema admits, where it names them, or null where it does not.</summary>
+            /// <remarks>
+            /// Read by its op, as a parameter left open is: <c>type.enum</c> names every value,
+            /// and a key is text, so that is the one schema of a key whose values can be listed.
+            /// </remarks>
+            public IReadOnlyList<string>? Keys()
+            {
+                if (Key is null)
+                {
+                    return null;
+                }
+
+                using JsonDocument schema = JsonDocument.Parse(Key);
+                JsonElement root = schema.RootElement;
+                return Operation(root) == "type.enum"
+                    && root.TryGetProperty("values", out JsonElement values)
+                    && values.ValueKind == JsonValueKind.Array
+                    && values.EnumerateArray().All(static value => value.ValueKind == JsonValueKind.String)
+                    ? [.. values.EnumerateArray().Select(static value => value.GetString()!)]
+                    : null;
             }
         }
 

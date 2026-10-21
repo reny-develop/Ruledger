@@ -27,7 +27,7 @@ namespace Ruledger.Tests
             string written = design.ToJson();
             JsonElement root = JsonDocument.Parse(written).RootElement;
 
-            Assert.Equal("ruledger/test-design/v4", root.GetProperty("$schema").GetString());
+            Assert.Equal("ruledger/test-design/v5", root.GetProperty("$schema").GetString());
             Assert.Equal("lamp@1.0.0", root.GetProperty("start").GetProperty("ruleSet").GetString());
             Assert.False(root.GetProperty("start").GetProperty("data").GetProperty("sw").GetProperty("data").GetProperty("on").GetBoolean());
 
@@ -53,7 +53,7 @@ namespace Ruledger.Tests
         {
             string v2 = TestDesign.Derive(Vocabulary.Runtime, Vocabulary.Read("approval"), new WalkSettings(States: 300))
                 .ToJson()
-                .Replace("ruledger/test-design/v4", "ruledger/test-design/v2", StringComparison.Ordinal);
+                .Replace("ruledger/test-design/v5", "ruledger/test-design/v2", StringComparison.Ordinal);
 
             TestDesign read = TestDesign.FromJson(v2);
 
