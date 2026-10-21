@@ -256,6 +256,17 @@ namespace Ruledger.Tests
             && TestDesign.FromJson($$"""{"$schema":"ruledger/test-design/v5","ruleSet":"x","settings":{"states":1,"candidates":1,"outcomes":1},"observed":[],"collapsed":[],"unreached":0,"edits":[],"states":[{"name":"#0","state":{},"evaluated":0,"moves":[{{written.GetRawText()}}]}]}""")
                 .States[0].Moves[0].Text == move.Text;
 
+        // A collection's instances are compared whole, which nothing in Observed says; this is
+        // where a host reads that they are.
+        [Fact]
+        public void AScanNamesTheCollectionsItComparesWhole()
+        {
+            Assert.Equal(["claims"], ObservationScan.Of(Vocabulary.Read("claim-month"), Held).Collections);
+            Assert.Equal(["limit", "used"], ObservationScan.Of(Vocabulary.Read("claim-month"), Held).Observed);
+            Assert.Equal(["months", "months.claims"], ObservationScan.Of(Vocabulary.Read("claim-ledger"), Held).Collections);
+            Assert.Empty(ObservationScan.Of(Vocabulary.Read("approval")).Collections);
+        }
+
         private static TestDesign Month(int states = 3000) =>
             TestDesign.Derive(FixtureStore.Runtime(), Vocabulary.Read("claim-month"), Held, Starts, null, new WalkSettings(States: states), null);
 

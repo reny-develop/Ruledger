@@ -92,7 +92,8 @@ TestDesign design = TestDesign.Derive(
     start: null, settings: null, edits: null);
 ```
 
-A position is then every document, and a state carries them as `Documents`; a move is asked
+A position is then every document, and a state carries them as `Documents`, each instance
+compared whole — `ObservationScan.Collections` names the collections that are; a move is asked
 of each document in turn and says which instance it is at. A step reads only the rule set's own
 document and the instance it is at — Rulealize refuses a guard that reads anything its
 transition does not write — so one already followed from the same documents is written down

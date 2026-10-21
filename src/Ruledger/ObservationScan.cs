@@ -84,11 +84,19 @@ namespace Ruledger
         // so a component that holds others contributes its own with its alias in front.
         internal IReadOnlySet<string> Held => this.held;
 
-        // What a rule set keeps as documents of their own, at any depth, in the order the
-        // `uses` declare them with each one's own collections after it. None of their fields is
-        // a field of the holder's state, so none of them is among Observed or Collapsed; an
-        // instance's document is compared whole.
-        internal IReadOnlyList<Collection> Collections => this.collections;
+        /// <summary>Gets the collections the rule set keeps instances in, at any depth, by the aliases on the way down joined by <c>.</c>, in the order the rule set declares them.</summary>
+        /// <remarks>
+        /// A <c>uses</c> entry with a <c>many</c> keeps each instance as a document of its own,
+        /// so none of its fields is in <see cref="Observed"/> or <see cref="Collapsed"/>. Two
+        /// positions are the same only where every instance is at the same address, in the same
+        /// order, with the same document: an instance is compared whole. <c>claims</c> for a
+        /// month, and <c>months</c> and <c>months.claims</c> for a ledger of months; empty for a
+        /// rule set that keeps none.
+        /// </remarks>
+        public IReadOnlyList<string> Collections => [.. this.collections.Select(static collection => collection.Name)];
+
+        // The same, with the schema each one's keys are written with, for the walk.
+        internal IReadOnlyList<Collection> Kept => this.collections;
 
         /// <summary>Gets the state fields nothing observable depends on, in the order the schema declares them.</summary>
         /// <remarks>
@@ -295,7 +303,7 @@ namespace Ruledger
                         : null;
 
                     this.collections.Add(new Collection([alias], key));
-                    this.collections.AddRange(component.Collections.Select(inner => inner with { Path = [alias, .. inner.Path] }));
+                    this.collections.AddRange(component.Kept.Select(inner => inner with { Path = [alias, .. inner.Path] }));
                     continue;
                 }
                 List<string> held = [.. component.Declared.Select(field => alias + "." + field)];
