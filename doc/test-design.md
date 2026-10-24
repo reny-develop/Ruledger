@@ -345,9 +345,16 @@ That settles what the step decides, not what follows it. That nothing is lost is
 (`verify/Keeping.cs`): every position of up to four claims of `claim-month`, walked to the end
 breadth first straight through the runtime, takes 112 different steps — a month and a claim
 before, an input, a month and a claim after — and the walk takes all 112 in 66 states, and
-ends. What it does not write down is a position it did not visit: what a projection reading
+ends. Where the claim's approver is drawn (`claim-drawn`), each thing an input can draw is a
+step of its own: up to three claims, 299 steps, and the walk takes all 299 in 113 states. What
+it does not write down is a position it did not visit: what a projection reading
 every instance would say about a month holding four drafts is not in the design, because no
 step needed that position.
+
+**Where the rules draw, each branch is followed.** What may happen is asked of the documents the
+input reads, through the store, and each branch is applied and committed on its own, so a move
+at an instance `lands` in more than one place as any other does. A step already followed is
+written `as` once, whatever it draws: its branches are the ones it had where it was followed.
 
 **A collection keyed by a schema has an instance at every key the schema admits.** Where the
 schema names its keys — an enumeration — every one is walked. Where it does not, the walk goes

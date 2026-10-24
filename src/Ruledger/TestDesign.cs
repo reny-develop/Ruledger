@@ -681,7 +681,8 @@ namespace Ruledger
                         }
                         else
                         {
-                            Apply(position, document);
+                            store.Load(position.Documents!);
+                            rules.GetOutcomesAsync(document, 1).GetAwaiter().GetResult();
                         }
                     }
                     catch (InputRejectedException rejected)
@@ -717,20 +718,31 @@ namespace Ruledger
                 // offers are written down and none of them is followed.
                 if (!terminal.IsTerminal && store is not null)
                 {
-                    // Nothing a rule set that keeps instances does draws yet, so applying the
-                    // input settles where it goes.
-                    Landing landing = new(1, null);
-                    landings.Add(landing);
-
+                    // A step already followed from the same documents is followed nowhere again,
+                    // and that is said of the step, whatever it draws: its branches are the ones
+                    // it had where it was followed.
                     string stepping = Stepping(position, text, input.At);
                     if (this.stepped.TryGetValue(stepping, out string? followedAt))
                     {
-                        landing.As = followedAt;
+                        landings.Add(new Landing(1, null) { As = followedAt });
                     }
                     else
                     {
                         this.stepped[stepping] = entry.Name;
-                        ahead.Add(new Step(landing, Apply(position, document), text));
+
+                        // What may happen is asked of the documents the input reads, as it is of
+                        // a state document below, and each branch is applied and committed on
+                        // its own: an input that draws nothing has the one.
+                        store.Load(position.Documents!);
+                        StoreOutcomeSet outcomes = rules.GetOutcomesAsync(document, settings.Outcomes).GetAwaiter().GetResult();
+                        followed = outcomes.Truncated ? outcomes.Coverage : 1;
+
+                        foreach (StoreOutcome outcome in outcomes)
+                        {
+                            Landing landing = new(outcome.Probability, outcome.Draws.IsEmpty ? null : outcome.ToOutcomeDocument());
+                            landings.Add(landing);
+                            ahead.Add(new Step(landing, Apply(position, document, outcome), text));
+                        }
                     }
                 }
                 else if (!terminal.IsTerminal)
@@ -772,14 +784,15 @@ namespace Ruledger
                 onward.Add(ahead);
             }
 
-            // Where an input leads from a position kept in the store: the position put back,
-            // the input applied and committed, and what the store then holds read out. Keys are
-            // the store's, and a memory store's follow from the documents, so the same position
-            // and input give the same key whichever route the walk took there.
-            private Position Apply(Position position, string document)
+            // Where one outcome of an input leads from a position kept in the store: the position
+            // put back, the input applied with the outcome's draws and committed, and what the
+            // store then holds read out. Keys are the store's, and a memory store's follow from
+            // the documents, so the same position and input give the same key whichever route the
+            // walk took there.
+            private Position Apply(Position position, string document, StoreOutcome outcome)
             {
                 store!.Load(position.Documents!);
-                rules.ApplyAsync(document).GetAwaiter().GetResult();
+                rules.ApplyAsync(document, outcome).GetAwaiter().GetResult();
                 return Position.Read(store.Documents, rules.InitialState);
             }
 
