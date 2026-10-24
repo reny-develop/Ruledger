@@ -27,9 +27,9 @@ namespace Ruledger.Verify
     /// </remarks>
     public class Keeping(Xunit.Abstractions.ITestOutputHelper said)
     {
-        private static readonly Dictionary<string, string> Held = new(StringComparer.Ordinal)
+        private static Dictionary<string, string> Held(string claim) => new(StringComparer.Ordinal)
         {
-            ["claim"] = Fixture.RuleSet("claim"),
+            ["claim"] = Fixture.RuleSet(claim),
         };
 
         private static readonly Dictionary<string, string> Starts = new(StringComparer.Ordinal)
@@ -37,19 +37,25 @@ namespace Ruledger.Verify
             ["claim-start"] = Fixture.State("claim-start"),
         };
 
+        // `claim-drawn` is the claim with who approves it left to chance, so a step there has a
+        // branch per thing it can draw and each branch is a step of its own. Its reference stops
+        // at three claims: at four it is 312,359 positions and nearly four minutes, and finds
+        // the same 299 steps.
         [Theory]
-        [InlineData(3)]
-        [InlineData(4)]
-        public void StoppingAStepAtWhatItReadsLosesNoStepAFewClaimsTake(int Claims)
+        [InlineData(3, "claim", 112, 66)]
+        [InlineData(4, "claim", 112, 66)]
+        [InlineData(3, "claim-drawn", 299, 113)]
+        public void StoppingAStepAtWhatItReadsLosesNoStepAFewClaimsTake(int Claims, string Claim, int Steps, int States)
         {
+            Dictionary<string, string> held = Held(Claim);
             Stopwatch watch = Stopwatch.StartNew();
-            (HashSet<string> steps, HashSet<string> offered, int positions) = Reference(Claims);
+            (HashSet<string> steps, HashSet<string> offered, int positions) = Reference(Claims, held);
             TimeSpan reference = watch.Elapsed;
 
             watch.Restart();
             string month = Fixture.RuleSet("claim-month");
             TestDesign design = TestDesign.Derive(
-                FixtureStore.Runtime(), month, Held, new WalkSettings(States: 3000), ObservationScan.Of(month, Held),
+                FixtureStore.Runtime(), month, held, new WalkSettings(States: 3000), ObservationScan.Of(month, held),
                 null, null, Starts);
             TimeSpan trial = watch.Elapsed;
 
@@ -74,17 +80,17 @@ namespace Ruledger.Verify
 
             Assert.Empty(missing);
             Assert.Empty(unoffered);
-            Assert.Equal(112, steps.Count);
-            Assert.Equal(112, walkedSteps.Count);
-            Assert.Equal(66, design.States.Count);
+            Assert.Equal(Steps, steps.Count);
+            Assert.Equal(Steps, walkedSteps.Count);
+            Assert.Equal(States, design.States.Count);
             Assert.Equal(0, design.Unreached);
         }
 
         // Every position of at most so many claims, breadth first, through the runtime alone.
-        private static (HashSet<string> Steps, HashSet<string> Offered, int Positions) Reference(int claims)
+        private static (HashSet<string> Steps, HashSet<string> Offered, int Positions) Reference(int claims, Dictionary<string, string> held)
         {
             MemoryStateStore store = new();
-            RuleContext rules = FixtureStore.Runtime().UseStore(store).CreateContext(Fixture.RuleSet("claim-month"), Held, Starts);
+            RuleContext rules = FixtureStore.Runtime().UseStore(store).CreateContext(Fixture.RuleSet("claim-month"), held, Starts);
 
             HashSet<string> steps = new(StringComparer.Ordinal);
             HashSet<string> offered = new(StringComparer.Ordinal);
@@ -109,31 +115,38 @@ namespace Ruledger.Verify
                         foreach ((string text, string document) in Filled(rules, input))
                         {
                             store.Load(here);
+                            StoreOutcomeSet outcomes;
                             try
                             {
-                                rules.ApplyAsync(document).GetAwaiter().GetResult();
+                                outcomes = rules.GetOutcomesAsync(document, 100).GetAwaiter().GetResult();
                             }
                             catch (IllegalInputException)
                             {
                                 continue;
                             }
 
-                            IReadOnlyList<KeyValuePair<StateAddress, string>> there = store.Documents;
                             offered.Add(Offered(text, root, Instance(here, address)));
-
                             if (input.At.IsRoot && count >= claims)
                             {
                                 continue;
                             }
 
-                            StateAddress written = input.At.IsRoot
-                                ? there.Last(document => !document.Key.IsRoot && !here.Any(was => was.Key.Equals(document.Key))).Key
-                                : address;
-                            steps.Add(Taken(text, root, Instance(here, address), Root(there, rules.InitialState), Instance(there, written)));
-
-                            if (seen.Add(Position(there, rules.InitialState)))
+                            // Each thing the input can draw is a step of its own.
+                            foreach (StoreOutcome outcome in outcomes)
                             {
-                                ahead.Enqueue(there);
+                                store.Load(here);
+                                rules.ApplyAsync(document, outcome).GetAwaiter().GetResult();
+                                IReadOnlyList<KeyValuePair<StateAddress, string>> there = store.Documents;
+
+                                StateAddress written = input.At.IsRoot
+                                    ? there.Last(document => !document.Key.IsRoot && !here.Any(was => was.Key.Equals(document.Key))).Key
+                                    : address;
+                                steps.Add(Taken(text, root, Instance(here, address), Root(there, rules.InitialState), Instance(there, written)));
+
+                                if (seen.Add(Position(there, rules.InitialState)))
+                                {
+                                    ahead.Enqueue(there);
+                                }
                             }
                         }
                     }

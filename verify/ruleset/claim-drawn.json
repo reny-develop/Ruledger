@@ -1,0 +1,57 @@
+{
+  // `claim`, with who approves it left to chance: `assign` picks one of ann and bo while the
+  // claim is a draft. Written because nothing else here both keeps instances and draws, and a
+  // walk over a month of these asks what may happen of the documents the input reads, through
+  // the store, and follows each branch. `claim-month` holds it unchanged, since `^1.0` admits it.
+  "id": "claim",
+  "version": "1.1.0",
+
+  "requires": [
+    { "plugin": "Rulealize.Plugin.TypeSchema" }, { "plugin": "Rulealize.Plugin.State" },
+    { "plugin": "Rulealize.Plugin.Sequence" },   { "plugin": "Rulealize.Plugin.Comparison" },
+    { "plugin": "Rulealize.Plugin.Logic" },      { "plugin": "Rulealize.Plugin.Binding" },
+    { "plugin": "Rulealize.Plugin.Chance" }
+  ],
+
+  "state": {
+    "schema": {
+      "stage":    { "op": "type.enum", "values": ["draft", "review", "granted", "denied"] },
+      "amount":   { "op": "type.int", "min": 0, "max": 3 },
+      "approver": { "op": "type.enum", "values": ["ann", "bo"] }
+    },
+    "initial": { "stage": "draft", "amount": 0, "approver": "ann" }
+  },
+
+  "inputs": {
+    "assign": {
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "draft" },
+      "effects": [ { "op": "state.set", "path": "approver",
+                     "value": { "op": "chance.pick", "of": { "op": "seq.of", "of": ["ann", "bo"] } } } ]
+    },
+    "enterAmount": {
+      "params": { "amount": { "open": { "field": "amount" } } },
+      "when": { "op": "cmp.eq", "left": "$stage", "right": "draft" },
+      "effects": [ { "op": "state.set", "path": "amount", "value": "@amount" } ]
+    },
+    "submit": {
+      "when": { "op": "logic.and", "all": [
+        { "op": "cmp.eq", "left": "$stage", "right": "draft" },
+        { "op": "cmp.gt", "left": "$amount", "right": 0 } ] },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "review" } ]
+    },
+    "grant": {
+      "params": { "by": { "domain": { "op": "seq.of", "of": ["ann", "bo"] } } },
+      "when": { "op": "logic.and", "all": [
+        { "op": "cmp.eq", "left": "$stage", "right": "review" },
+        { "op": "cmp.eq", "left": "@by", "right": "$approver" } ] },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "granted" } ]
+    },
+    "reject": {
+      "params": { "by": { "domain": { "op": "seq.of", "of": ["ann", "bo"] } } },
+      "when": { "op": "logic.and", "all": [
+        { "op": "cmp.eq", "left": "$stage", "right": "review" },
+        { "op": "cmp.eq", "left": "@by", "right": "$approver" } ] },
+      "effects": [ { "op": "state.set", "path": "stage", "value": "denied" } ]
+    }
+  }
+}

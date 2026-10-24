@@ -250,6 +250,54 @@ namespace Ruledger.Tests
             Assert.False(written.TryGetProperty("to", out _));
         }
 
+        [Fact]
+        public void AnInputThatDrawsAtAClaimLandsOnceForEachThingItCanDraw()
+        {
+            TestDesign design = Drawn();
+            TestDesignState created = design.States.Single(static state => state.By == "create" && state.From == "#0");
+
+            Move assign = created.Moves.Single(static move => move.Text == "claims.assign@1");
+
+            Assert.Equal([0.5, 0.5], assign.Landings.Select(static landing => landing.Probability));
+            Assert.All(assign.Landings, static landing => Assert.NotNull(landing.To));
+            Assert.Equal(
+                ["ann", "bo"],
+                assign.Landings.Select(landing => Data(design.States.Single(state => state.Name == landing.To).Documents[1].Value)
+                    .GetProperty("approver").GetString()));
+            Assert.Equal(
+                ["ann", "bo"],
+                assign.Landings.Select(static landing => JsonDocument.Parse(landing.Draw!).RootElement.GetProperty("draws")[0].GetString()));
+        }
+
+        [Fact]
+        public void AWalkWithDrawsAtAClaimIsWrittenAndReadBack()
+        {
+            TestDesign design = Drawn();
+            string written = design.ToJson();
+
+            Assert.Equal(written, TestDesign.FromJson(written).ToJson());
+        }
+
+        [Fact]
+        public void AWalkWithDrawsAtAClaimDiffedAgainstItselfIsEmpty()
+        {
+            TestDesign design = Drawn();
+
+            TestDesignDiff diff = TestDesignDiff.Of(
+                FixtureStore.Runtime(), design.ToJson(), Vocabulary.Read("claim-month"), DrawnHeld, Starts);
+
+            Assert.True(diff.IsEmpty, diff.ToString());
+        }
+
+        private static readonly Dictionary<string, string> DrawnHeld = new(StringComparer.Ordinal)
+        {
+            ["claim"] = Vocabulary.Read("claim-drawn"),
+            ["claim-month"] = Vocabulary.Read("claim-month"),
+        };
+
+        private static TestDesign Drawn() =>
+            TestDesign.Derive(FixtureStore.Runtime(), Vocabulary.Read("claim-month"), DrawnHeld, Starts, null, new WalkSettings(States: 60), null);
+
         private static bool Matches(JsonElement written, Move move) =>
             written.TryGetProperty("input", out JsonElement input) && input.GetString() == move.Input
             && (written.TryGetProperty("at", out JsonElement at) ? at.GetRawText() : "") == (move.At.Count == 0 ? "" : at.GetRawText())
